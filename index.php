@@ -59,7 +59,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: url('https://via.placeholder.com/1920x600?text=Hero+Image') no-repeat center center/cover;
+            background: url('https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1920&q=80') no-repeat center center/cover;
             opacity: 0.2;
             z-index: 1;
         }
@@ -226,7 +226,7 @@
                 <a href="signup.php?role=owner" class="btn btn-primary px-4 py-2">List Your Car</a>
                 <a href="signup.php?role=driver" class="btn btn-secondary px-4 py-2">Book a Car</a>
             </div>
-            <img src="cars/Honda_city.jpg" alt="Car Rental Hero Image" class="mt-4 mx-auto w-100" style="max-width: 600px; border-radius: 10px;">
+            <img src="https://images.unsplash.com/photo-1502877338535-766e3a6052c0?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=600&q=80" alt="Car Rental Hero Image" class="mt-4 mx-auto w-100" style="max-width: 600px; border-radius: 10px;">
         </div>
     </section>
 
@@ -237,7 +237,7 @@
             <div class="row">
                 <div class="col-md-4">
                     <div class="card car-card">
-                        <img src="https://via.placeholder.com/400x200?text=Car+1" class="card-img-top" alt="Car 1">
+                        <img src="https://images.unsplash.com/photo-1549317661-bd7c8e4e7b1d?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" class="card-img-top" alt="Tesla Model 3">
                         <div class="card-body">
                             <h5 class="card-title">Tesla Model 3</h5>
                             <p class="card-text">Electric, 300mi range, $50/day</p>
@@ -247,7 +247,7 @@
                 </div>
                 <div class="col-md-4">
                     <div class="card car-card">
-                        <img src="https://via.placeholder.com/400x200?text=Car+2" class="card-img-top" alt="Car 2">
+                        <img src="https://images.unsplash.com/photo-1552519507-da3b142c6e3d?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" class="card-img-top" alt="Toyota Camry">
                         <div class="card-body">
                             <h5 class="card-title">Toyota Camry</h5>
                             <p class="card-text">Sedan, Fuel-efficient, $40/day</p>
@@ -257,7 +257,7 @@
                 </div>
                 <div class="col-md-4">
                     <div class="card car-card">
-                        <img src="https://via.placeholder.com/400x200?text=Car+3" class="card-img-top" alt="Car 3">
+                        <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" class="card-img-top" alt="Jeep Wrangler">
                         <div class="card-body">
                             <h5 class="card-title">Jeep Wrangler</h5>
                             <p class="card-text">SUV, Off-road, $60/day</p>
@@ -392,7 +392,7 @@
                         </a>
                         <a href="https://twitter.com/rentify" class="text-primary">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-2.717 0-4.92 2.203-4.92 4.917 0 .39.045.765.127 1.124-4.09-.205-7.719-2.165-10.141-5.144-.424.729-.666 1.574-.666 2.475 0 1.708.87 3.215 2.188 4.099-.807-.026-1.566-.248-2.228-.616v.061c0 2.385 1.698 4.374 3.946 4.827-.413.111-.849.171-1.296.171-.314 0-.615-.03-.916-.086.621 1.938 2.418 3.348 4.548 3.385-1.669 1.307-3.776 2.083-6.061 2.083-.394 0-.787-.023-1.175-.068 2.179 1.397 4.768 2.212 7.548 2.212 9.057 0 14.009-7.502 14.009-14.008 0-.213-.005-.426-.014-.637.961-.695 1.797-1.562 2.457-2.549z"></path>
+                                <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-2.717 0-4.92 2.203-4.92 4.917 0 .39.045.765.127 1.124-4.09-.205-7.719-2.165-10.141-5.144-.424.729-.666 1.574-.666 2.475 0 1.708.87 3.215 2.188 4.099-.807-.026-1.566-.248-2.228-.616v.061c0 2.385 1.698 4.374 3.946 4.827-.413.111-.849.171-1.296.171-.314 0-.615-.03-.916-.086 .621 1.938 2.418 3.348 4.548 3.385-1.669 1.307-3.776 2.083-6.061 2.083-.394 0-.787-.023-1.175-.068 2.179 1.397 4.768 2.212 7.548 2.212 9.057 0 14.009-7.502 14.009-14.008 0-.213-.005-.426-.014-.637 .961-.695 1.797-1.562 2.457-2.549z"></path>
                             </svg>
                         </a>
                         <a href="https://instagram.com/rentify" class="text-primary">
