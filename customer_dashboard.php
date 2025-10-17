@@ -253,7 +253,7 @@
                                 echo '<p class="text-gray-300">Rating: ' . number_format($row['avg_rating'], 1) . ' (' . $row['booking_count'] . ' bookings)</p>';
                                 echo '<div class="mt-4 flex space-x-2">';
                                 echo '<a href="car_details.php?car_id=' . $row['car_id'] . '" class="bg-teal-600 text-gray-100 p-2 rounded-lg hover:bg-teal-700 transition">View Details</a>';
-                                echo '<a href="book_car.php?car_id=' . $row['car_id'] . '" class="bg-green-500 text-gray-100 p-2 rounded-lg hover:bg-green-600 transition">Reserve</a>';
+                                echo '<a href="book.php?car_id=' . $row['car_id'] . '" class="bg-green-500 text-gray-100 p-2 rounded-lg hover:bg-green-600 transition">Reserve</a>';
                                 echo '</div>';
                                 echo '</div>';
                             }
@@ -282,7 +282,7 @@
                                 echo '<p class="text-gray-300">Rating: ' . number_format($row['avg_rating'], 1) . ' ★</p>';
                                 echo '<div class="mt-4 flex space-x-2">';
                                 echo '<a href="car_details.php?car_id=' . $row['car_id'] . '" class="bg-teal-600 text-gray-100 p-2 rounded-lg hover:bg-teal-700 transition">View Details</a>';
-                                echo '<a href="book_car.php?car_id=' . $row['car_id'] . '" class="bg-green-500 text-gray-100 p-2 rounded-lg hover:bg-green-600 transition">Reserve</a>';
+                                echo '<a href="book.php?car_id=' . $row['car_id'] . '" class="bg-green-500 text-gray-100 p-2 rounded-lg hover:bg-green-600 transition">Reserve</a>';
                                 echo '</div>';
                                 echo '</div>';
                             }
