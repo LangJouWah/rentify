@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Log In - Rentify</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
         function validateForm() {
             const email = document.querySelector('input[name="email"]').value;
             const password = document.querySelector('input[name="password"]').value;
             const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{6,}$/;
+
             
             if (!emailRegex.test(email)) {
                 alert('Please enter a valid email (e.g., user@example.com).');
@@ -21,6 +23,25 @@
                 return false;
             }
             return true;
+        }
+
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('toggle-icon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+
+        function handleForgotPassword() {
+            window.location.href = 'forgot_password.php';
         }
     </script>
 </head>
@@ -34,9 +55,17 @@
                     <label class="block text-gray-100 mb-2" for="email">Email</label>
                     <input type="email" name="email" id="email" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" placeholder="Email" required>
                 </div>
-                <div class="mb-6">
+                <div class="mb-4 relative">
                     <label class="block text-gray-100 mb-2" for="password">Password</label>
-                    <input type="password" name="password" id="password" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" placeholder="Password" required>
+                    <div class="relative">
+                        <input type="password" name="password" id="password" class="w-full p-3 pr-10 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" placeholder="Password" required>
+                        <button type="button" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-200" onclick="togglePasswordVisibility()">
+                            <i id="toggle-icon" class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-6 text-right">
+                    <button type="button" class="text-teal-400 hover:text-teal-300 text-sm" onclick="handleForgotPassword()">Forgot Password?</button>
                 </div>
                 <button type="submit" class="w-full bg-teal-600 text-white p-3 rounded-lg hover:bg-teal-700 transition">Log In</button>
             </form>
