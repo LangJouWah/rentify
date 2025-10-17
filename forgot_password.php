@@ -1,867 +1,732 @@
 <?php
 session_start();
 
-ini_set('session.gc_maxlifetime', 300); // 5 minutes
-session_set_cookie_params(300);
+// Include database connection
+require_once 'db_connect.php';
 
-// Prevent browser from caching pages
-header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
-header("Cache-Control: post-check=0, pre-check=0", false);
-header("Pragma: no-cache");
+// Include PHPMailer files
+require_once 'PHPMailer-master/src/Exception.php';
+require_once 'PHPMailer-master/src/PHPMailer.php';
+require_once 'PHPMailer-master/src/SMTP.php';
 
-include "db_connect.php";
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
-// Include PHPMailer
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
-require 'phpmailer/src/Exception.php';
-require 'phpmailer/src/PHPMailer.php';
-require 'phpmailer/src/SMTP.php';
 
-function generateOTP($length = 6) {
-    $digits = '0123456789';
-    $otp = '';
-    for ($i = 0; $i < $length; $i++) {
-        $otp .= $digits[random_int(0, strlen($digits) - 1)];
-    }
-    return $otp;
-}
-
-// Auto cleanup expired or used OTPs
-function cleanupExpiredOTPs($conn) {
-    $stmt = $conn->prepare("
-        DELETE FROM password_reset_otps 
-        WHERE expires_at < NOW() 
-           OR used = 1
-    ");
-    $stmt->execute();
-}
-
-// Call at top of your script
-cleanupExpiredOTPs($conn);
-
-function sendOTPEmail($recipientEmail, $recipientName, $otp) {
-    $mail = new PHPMailer(true);
+// Email sending function using PHPMailer
+function sendEmail($to, $subject, $message) {
     try {
+        $mail = new PHPMailer(true);
+        
+        // Server settings
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'systembec0@gmail.com';
-        $mail->Password = 'uzda yasn cmeg uyje';
+        $mail->Username = 'rentifynoreply@gmail.com';
+        $mail->Password = 'jahm ygwf aqcq sijd';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
-        $mail->SMTPOptions = [
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-                'allow_self_signed' => true
-            ]
-        ];
-
-        $mail->setFrom('systembec0@gmail.com', 'BEC HRMS Clinic System');
-        $mail->addAddress($recipientEmail, $recipientName);
+        
+        // Recipients
+        $mail->setFrom('rentifynoreply@gmail.com', 'Rentify');
+        $mail->addAddress($to);
+        
+        // Content
         $mail->isHTML(true);
-        $mail->Subject = 'Your OTP for Password Reset - BEC HRMS Clinic System';
-        
-        // Enhanced HTML email template
-        $htmlMessage = "
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset='UTF-8'>
-            <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #800000, #a83232); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 20px; border-radius: 0 0 10px 10px; }
-                .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
-                .otp-box { background: #fff; padding: 20px; border: 3px solid #800000; border-radius: 10px; font-size: 32px; font-weight: bold; text-align: center; margin: 20px 0; letter-spacing: 8px; color: #800000; }
-                .warning { background: #fff3cd; padding: 12px; border-radius: 5px; border-left: 4px solid #ffc107; margin: 15px 0; }
-                .timer { background: #e7f3ff; padding: 10px; border-radius: 5px; border-left: 4px solid #007bff; margin: 10px 0; font-weight: bold; }
-            </style>
-        </head>
-        <body>
-            <div class='container'>
-                <div class='header'>
-                    <h1>BEC HRMS Clinic System</h1>
-                </div>
-                <div class='content'>
-                    <h2>Password Reset OTP</h2>
-                    <p>Dear $recipientName,</p>
-                    <p>You have requested a password reset for your BEC HRMS Clinic System account.</p>
-                    <p>Use the following OTP to verify your identity:</p>
-                    <div class='otp-box'>$otp</div>
-                    <div class='timer'>
-                        ⏰ This OTP will expire in 5 minutes
-                    </div>
-                    <div class='warning'>
-                        <strong>Important:</strong> Do not share this OTP with anyone. Our support team will never ask for your OTP.
-                    </div>
-                    <p>If you did not request this password reset, please contact our support team immediately.</p>
-                </div>
-                <div class='footer'>
-                    <p>This is an automated message. Please do not reply to this email.</p>
-                    <p>&copy; " . date('Y') . " BEC HRMS Clinic System. All rights reserved.</p>
-                </div>
-            </div>
-        </body>
-        </html>";
-        
-        $mail->Body = $htmlMessage;
-        $mail->AltBody = "OTP: $otp\n\nDear $recipientName,\n\nYou have requested a password reset. Use this OTP to verify your identity. This OTP will expire in 5 minutes.\n\nIf you didn't request this, please contact support.";
+        $mail->Subject = $subject;
+        $mail->Body = $message;
+        $mail->AltBody = strip_tags($message);
         
         return $mail->send();
     } catch (Exception $e) {
-        error_log("Email sending failed to $recipientEmail: " . $mail->ErrorInfo);
+        error_log("Mailer Error: " . $mail->ErrorInfo);
         return false;
     }
 }
 
-function handleForgotPassword($conn, $email) {
-    $email = filter_var($email, FILTER_SANITIZE_EMAIL);
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return ['error' => "Please enter a valid email address."];
-    }
-
-    $stmt = $conn->prepare("SELECT id, name, email FROM users WHERE email = ?");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($result && $result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        $user_id = $user['id'];
-        $user_name = $user['name'];
-        $user_email = $user['email'];
-
-        // Generate OTP
-        $otp = generateOTP();
-        $expires_at = date('Y-m-d H:i:s', strtotime('+5 minutes'));
-        
-        // Store OTP in database
-        $stmt = $conn->prepare("INSERT INTO password_reset_otps (user_id, otp, expires_at) VALUES (?, ?, ?)");
-        $stmt->bind_param("iss", $user_id, $otp, $expires_at);
-        
-        if ($stmt->execute()) {
-            // Send OTP email
-            if (sendOTPEmail($user_email, $user_name, $otp)) {
-                $_SESSION['otp_user_id'] = $user_id;
-                $_SESSION['otp_email'] = $user_email;
-                $_SESSION['otp_verified'] = false;
-                $_SESSION['otp_sent_time'] = time(); // Store the time when OTP was sent
-                return ['success' => "An OTP has been sent to your email. Please check your inbox and enter the OTP to reset your password."];
-            } else {
-                return ['error' => "Failed to send OTP email. Please try again later."];
-            }
-        } else {
-            return ['error' => "Failed to generate OTP. Please try again later."];
-        }
-    } else {
-        return ['error' => "No account found with this email."];
-    }
+// Generate random OTP
+function generateOTP($length = 6) {
+    return str_pad(rand(0, pow(10, $length) - 1), $length, '0', STR_PAD_LEFT);
 }
 
-function verifyOTP($conn, $user_id, $otp) {
-    $stmt = $conn->prepare("SELECT id FROM password_reset_otps WHERE user_id = ? AND otp = ? AND expires_at > NOW() AND used = 0");
-    $stmt->bind_param("is", $user_id, $otp);
-    $stmt->execute();
-    $result = $stmt->get_result();
+// Check if user can request OTP (anti-spam)
+function canRequestOTP($email) {
+    if (!isset($_SESSION['otp_requests'])) {
+        $_SESSION['otp_requests'] = [];
+    }
     
-    if ($result && $result->num_rows > 0) {
-        // Mark OTP as used
-        $stmt = $conn->prepare("UPDATE password_reset_otps SET used = 1 WHERE user_id = ? AND otp = ?");
-        $stmt->bind_param("is", $user_id, $otp);
-        $stmt->execute();
-        
-        return true;
+    $current_time = time();
+    $user_requests = $_SESSION['otp_requests'][$email] ?? [];
+    
+    // Remove requests older than 1 hour
+    $user_requests = array_filter($user_requests, function($timestamp) use ($current_time) {
+        return ($current_time - $timestamp) < 3600; // 1 hour
+    });
+    
+    // Check if user has made more than 5 requests in the last hour
+    if (count($user_requests) >= 5) {
+        return false;
     }
-    return false;
+    
+    // Add current request
+    $user_requests[] = $current_time;
+    $_SESSION['otp_requests'][$email] = $user_requests;
+    
+    return true;
 }
 
-function resetPassword($conn, $user_id, $new_password) {
-    $hashedPassword = password_hash($new_password, PASSWORD_DEFAULT);
-    $stmt = $conn->prepare("UPDATE users SET password = ? WHERE id = ?");
-    $stmt->bind_param("si", $hashedPassword, $user_id);
-    return $stmt->execute();
+// Get time until next OTP can be requested
+function getTimeUntilNextOTP($email) {
+    if (!isset($_SESSION['otp_requests'][$email])) {
+        return 0;
+    }
+    
+    $current_time = time();
+    $user_requests = $_SESSION['otp_requests'][$email];
+    
+    // Sort requests by time
+    sort($user_requests);
+    
+    // If user has less than 5 requests, they can request immediately
+    if (count($user_requests) < 5) {
+        return 0;
+    }
+    
+    // Calculate when the oldest request will be 1 hour old
+    $oldest_request = $user_requests[0];
+    $next_available = $oldest_request + 3600 - $current_time;
+    
+    return max(0, $next_available);
 }
 
-$success = $error = "";
-$step = 1; // 1: Email input, 2: OTP input, 3: New password input
-
-// Check for form submission
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        $_SESSION['flash_error'] = "Invalid form submission. Please try again.";
+// Handle resend OTP request
+if (isset($_GET['resend']) && $_GET['resend'] === 'true' && isset($_SESSION['reset_email'])) {
+    $email = $_SESSION['reset_email'];
+    
+    if (!canRequestOTP($email)) {
+        $time_left = getTimeUntilNextOTP($email);
+        $error = "Too many OTP requests. Please wait " . ceil($time_left / 60) . " minutes before requesting another OTP.";
     } else {
-        // Check if this is a resend request first
-        if (isset($_POST['resend_otp'])) {
-            // Handle OTP resend request
-            if (isset($_SESSION['otp_user_id']) && isset($_SESSION['otp_email'])) {
-                $current_time = time();
-                $last_sent_time = $_SESSION['otp_sent_time'] ?? 0;
-                $cooldown_period = 60; // 60 seconds cooldown
-                
-                if (($current_time - $last_sent_time) < $cooldown_period) {
-                    $remaining_time = $cooldown_period - ($current_time - $last_sent_time);
-                    $_SESSION['flash_error'] = "Please wait $remaining_time seconds before requesting a new OTP.";
-                } else {
-                    // Resend OTP
-                    $user_id = $_SESSION['otp_user_id'];
-                    $user_email = $_SESSION['otp_email'];
-                    
-                    // Get user name
-                    $stmt = $conn->prepare("SELECT name FROM users WHERE id = ?");
-                    $stmt->bind_param("i", $user_id);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    $user = $result->fetch_assoc();
-                    $user_name = $user['name'];
-                    
-                    // Generate new OTP
-                    $otp = generateOTP();
-                    $expires_at = date('Y-m-d H:i:s', strtotime('+5 minutes'));
-                    
-                    // Store new OTP in database
-                    $stmt = $conn->prepare("INSERT INTO password_reset_otps (user_id, otp, expires_at) VALUES (?, ?, ?)");
-                    $stmt->bind_param("iss", $user_id, $otp, $expires_at);
-                    
-                    if ($stmt->execute()) {
-                        // Send new OTP email
-                        if (sendOTPEmail($user_email, $user_name, $otp)) {
-                            $_SESSION['otp_sent_time'] = time(); // Update sent time
-                            $_SESSION['flash_success'] = "A new OTP has been sent to your email.";
-                        } else {
-                            $_SESSION['flash_error'] = "Failed to send OTP email. Please try again later.";
-                        }
-                    } else {
-                        $_SESSION['flash_error'] = "Failed to generate new OTP. Please try again later.";
-                    }
-                }
-            } else {
-                $_SESSION['flash_error'] = "Session expired. Please start over.";
-                $step = 1;
-            }
-        } elseif (isset($_POST['email'])) {
-            // Step 1: Email submission
-            $email = trim($_POST['email'] ?? '');
-            $response = handleForgotPassword($conn, $email);
+        // Regenerate OTP
+        $otp = generateOTP();
+        $otp_expiry = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+        
+        // Update session with new OTP
+        $_SESSION['reset_otp'] = $otp;
+        $_SESSION['otp_expiry'] = $otp_expiry;
+        
+        // Get user name from database
+        $stmt = $conn->prepare("SELECT name FROM users WHERE email = ?");
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        $stmt->close();
+        
+        // Send new OTP email
+        $subject = "Rentify - New Password Reset OTP";
+        $message = "
+            <html>
+            <head>
+                <style>
+    body { 
+        font-family: Arial, sans-serif; 
+        background: #1f2937;
 
-            if (isset($response['success'])) {
-                $_SESSION['flash_success'] = $response['success'];
-                $step = 2;
-            } else {
-                $_SESSION['flash_error'] = $response['error'];
-            }
-        } elseif (isset($_POST['otp'])) {
-            // Step 2: OTP verification
-            $otp = trim($_POST['otp'] ?? '');
-            if (isset($_SESSION['otp_user_id'])) {
-                if (verifyOTP($conn, $_SESSION['otp_user_id'], $otp)) {
-                    $_SESSION['otp_verified'] = true;
-                    $_SESSION['flash_success'] = "OTP verified successfully. You can now set your new password.";
-                    $step = 3;
-                } else {
-                    $_SESSION['flash_error'] = "Invalid or expired OTP. Please try again.";
-                    $step = 2;
-                }
-            } else {
-                $_SESSION['flash_error'] = "Session expired. Please start over.";
-                $step = 1;
-            }
-        } elseif (isset($_POST['new_password'])) {
-            // Step 3: Password reset
-            if (isset($_SESSION['otp_verified']) && $_SESSION['otp_verified'] && isset($_SESSION['otp_user_id'])) {
-                $new_password = trim($_POST['new_password'] ?? '');
-                $confirm_password = trim($_POST['confirm_password'] ?? '');
-                
-                if (strlen($new_password) < 8) {
-                    $_SESSION['flash_error'] = "Password must be at least 8 characters long.";
-                    $step = 3;
-                } elseif ($new_password !== $confirm_password) {
-                    $_SESSION['flash_error'] = "Passwords do not match.";
-                    $step = 3;
-                } else {
-                    if (resetPassword($conn, $_SESSION['otp_user_id'], $new_password)) {
-                        $_SESSION['flash_success'] = "Password reset successfully! You can now log in with your new password.";
-                        // Clear OTP session
-                        unset($_SESSION['otp_user_id'], $_SESSION['otp_email'], $_SESSION['otp_verified'], $_SESSION['otp_sent_time']);
-                        $step = 1;
-                    } else {
-                        $_SESSION['flash_error'] = "Failed to reset password. Please try again.";
-                        $step = 3;
-                    }
-                }
-            } else {
-                $_SESSION['flash_error'] = "OTP verification required. Please start over.";
-                $step = 1;
-            }
+    }
+    .container { 
+        max-width: 600px; 
+        margin: 0 auto; 
+        padding: 20px; 
+        background: #111827;
+        border: 1px solid #374151;
+        border-radius: 0.5rem;
+        font-color: white;
+    }
+    .header { 
+        background: #0d9488; 
+        color: white; 
+        padding: 20px; 
+        text-align: center; 
+        border-radius: 0.5rem 0.5rem 0 0;
+    }
+    .content { 
+        padding: 20px; 
+        background: #1f2937; 
+        color: #ffffffff;
+        border-radius: 0 0 0.5rem 0.5rem;
+        font-color: white;
+    }
+    .otp { 
+        font-size: 32px; 
+        font-weight: bold; 
+        text-align: center; 
+        color: #14b8a6; 
+        margin: 20px 0; 
+        background: #111827;
+        padding: 15px;
+        border-radius: 0.5rem;
+        border: 1px solid #374151;
+    }
+    .footer { 
+        text-align: center; 
+        padding: 20px; 
+        font-size: 12px; 
+        color: #9ca3af;
+        margin-top: 20px;
+        border-top: 1px solid #374151;
+    }
+</style>
+            </head>
+            <body>
+                <div class='container'>
+                    <div class='header'>
+                        <h1>Rentify</h1>
+                        <h2>New Password Reset OTP</h2>
+                    </div>
+                    <div class='content'>
+                        <p>Hello " . htmlspecialchars($user['name']) . ",</p>
+                        <p>You have requested a new OTP. Use the following OTP to proceed:</p>
+                        <div class='otp'>" . $otp . "</div>
+                        <p>This OTP will expire in 10 minutes.</p>
+                        <p>If you didn't request this reset, please ignore this email.</p>
+                    </div>
+                    <div class='footer'>
+                        <p>&copy; " . date('Y') . " Rentify. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        ";
+        
+        if (sendEmail($email, $subject, $message)) {
+            $success = "New OTP has been sent to your email address.";
+        } else {
+            $error = "Failed to send OTP. Please try again.";
         }
     }
-
-    // Redirect to same page to prevent resubmission
-    header("Location: " . $_SERVER['PHP_SELF']);
-    exit();
+    $show_otp_form = true;
 }
 
-// Determine current step from session
-if (isset($_SESSION['otp_verified']) && $_SESSION['otp_verified']) {
-    $step = 3;
-} elseif (isset($_SESSION['otp_user_id'])) {
-    $step = 2;
-} else {
-    $step = 1;
+// Handle form submissions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['request_otp'])) {
+        // Step 1: Request OTP
+        $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
+        
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = "Please enter a valid email address.";
+        } else {
+            // Check anti-spam protection
+            if (!canRequestOTP($email)) {
+                $time_left = getTimeUntilNextOTP($email);
+                $error = "Too many OTP requests. Please wait " . ceil($time_left / 60) . " minutes before requesting another OTP.";
+            } else {
+                // Check if email exists in database
+                $stmt = $conn->prepare("SELECT user_id, name FROM users WHERE email = ?");
+                $stmt->bind_param("s", $email);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                
+                if ($result->num_rows === 1) {
+                    $user = $result->fetch_assoc();
+                    
+                    // Generate OTP
+                    $otp = generateOTP();
+                    $otp_expiry = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+                    
+                    // Store OTP in session
+                    $_SESSION['reset_email'] = $email;
+                    $_SESSION['reset_otp'] = $otp;
+                    $_SESSION['otp_expiry'] = $otp_expiry;
+                    $_SESSION['otp_attempts'] = 0;
+                    
+                    // Send OTP email
+                    $subject = "Rentify - Password Reset OTP";
+                    $message = "
+                        <html>
+                        <head>
+                            <style>
+    body { 
+        font-family: Arial, sans-serif; 
+        background: #1f2937;
+    }
+    .container { 
+        max-width: 600px; 
+        margin: 0 auto; 
+        padding: 20px; 
+        background: #111827;
+        border: 1px solid #374151;
+        border-radius: 0.5rem;
+        font-color: white;
+    }
+    .header { 
+        background: #0d9488; 
+        color: white; 
+        padding: 20px; 
+        text-align: center; 
+        border-radius: 0.5rem 0.5rem 0 0;
+    }
+    .content { 
+        padding: 20px; 
+        background: #1f2937; 
+        color: #f3f4f6;
+        border-radius: 0 0 0.5rem 0.5rem;
+        font-color: white;
+    }
+    .otp { 
+        font-size: 32px; 
+        font-weight: bold; 
+        text-align: center; 
+        color: #14b8a6; 
+        margin: 20px 0; 
+        background: #111827;
+        padding: 15px;
+        border-radius: 0.5rem;
+        border: 1px solid #374151;
+    }
+    .footer { 
+        text-align: center; 
+        padding: 20px; 
+        font-size: 12px; 
+        color: #9ca3af;
+        margin-top: 20px;
+        border-top: 1px solid #374151;
+    }
+</style>
+                        </head>
+                        <body>
+                            <div class='container'>
+                                <div class='header'>
+                                    <h1>Rentify</h1>
+                                    <h2>Password Reset Request</h2>
+                                </div>
+                                <div class='content'>
+                                    <p>Hello " . htmlspecialchars($user['name']) . ",</p>
+                                    <p>You have requested to reset your password. Use the following OTP to proceed:</p>
+                                    <div class='otp'>" . $otp . "</div>
+                                    <p>This OTP will expire in 10 minutes.</p>
+                                    <p>If you didn't request this reset, please ignore this email.</p>
+                                </div>
+                                <div class='footer'>
+                                    <p>&copy; " . date('Y') . " Rentify. All rights reserved.</p>
+                                </div>
+                            </div>
+                        </body>
+                        </html>
+                    ";
+                    
+                    if (sendEmail($email, $subject, $message)) {
+                        $success = "OTP has been sent to your email address.";
+                        $show_otp_form = true;
+                    } else {
+                        $error = "Failed to send OTP. Please try again.";
+                    }
+                } else {
+                    $error = "No account found with this email address.";
+                }
+                $stmt->close();
+            }
+        }
+    } 
+    elseif (isset($_POST['verify_otp'])) {
+        // Step 2: Verify OTP
+        $entered_otp = $_POST['otp'];
+        $email = $_SESSION['reset_email'] ?? '';
+        
+        if (empty($email)) {
+            $error = "Session expired. Please start over.";
+            session_destroy();
+        } elseif ($_SESSION['otp_attempts'] >= 3) {
+            $error = "Too many failed attempts. Please request a new OTP.";
+            unset($_SESSION['reset_otp'], $_SESSION['otp_attempts']);
+        } elseif (time() > strtotime($_SESSION['otp_expiry'])) {
+            $error = "OTP has expired. Please request a new one.";
+            unset($_SESSION['reset_otp']);
+        } elseif ($entered_otp === $_SESSION['reset_otp']) {
+            // OTP verified successfully
+            $_SESSION['otp_verified'] = true;
+            $success = "OTP verified successfully. You can now set your new password.";
+            $show_password_form = true;
+        } else {
+            $_SESSION['otp_attempts'] = ($_SESSION['otp_attempts'] ?? 0) + 1;
+            $attempts_left = 3 - $_SESSION['otp_attempts'];
+            $error = "Invalid OTP. You have {$attempts_left} attempt(s) left.";
+            $show_otp_form = true;
+        }
+    } 
+    elseif (isset($_POST['reset_password'])) {
+        // Step 3: Reset Password
+        $new_password = $_POST['new_password'];
+        $confirm_password = $_POST['confirm_password'];
+        $email = $_SESSION['reset_email'] ?? '';
+        
+        if (empty($email) || !isset($_SESSION['otp_verified']) || !$_SESSION['otp_verified']) {
+            $error = "Session expired or OTP not verified. Please start over.";
+            session_destroy();
+        } elseif ($new_password !== $confirm_password) {
+            $error = "Passwords do not match.";
+            $show_password_form = true;
+        } elseif (strlen($new_password) < 6) {
+            $error = "Password must be at least 6 characters long.";
+            $show_password_form = true;
+        } else {
+            // Hash new password and update in database
+            $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+            
+            $stmt = $conn->prepare("UPDATE users SET password = ? WHERE email = ?");
+            $stmt->bind_param("ss", $hashed_password, $email);
+            
+            if ($stmt->execute()) {
+                $success = "Password has been reset successfully!";
+                
+                // Clear all reset-related session variables
+                unset($_SESSION['reset_email'], $_SESSION['reset_otp'], $_SESSION['otp_expiry'], 
+                      $_SESSION['otp_attempts'], $_SESSION['otp_verified']);
+                
+                // Also clear OTP requests for this email
+                if (isset($_SESSION['otp_requests'][$email])) {
+                    unset($_SESSION['otp_requests'][$email]);
+                }
+                
+                // Show login link
+                $show_login_link = true;
+            } else {
+                $error = "Failed to reset password. Please try again.";
+                $show_password_form = true;
+            }
+            $stmt->close();
+        }
+    }
 }
 
-// Calculate remaining time for resend
-$resend_cooldown = 60; // 60 seconds
-$remaining_time = 0;
-if (isset($_SESSION['otp_sent_time'])) {
-    $elapsed_time = time() - $_SESSION['otp_sent_time'];
-    $remaining_time = max(0, $resend_cooldown - $elapsed_time);
-}
-
-// Show flash messages
-if (isset($_SESSION['flash_success'])) {
-    $success = $_SESSION['flash_success'];
-    unset($_SESSION['flash_success']);
-}
-if (isset($_SESSION['flash_error'])) {
-    $error = $_SESSION['flash_error'];
-    unset($_SESSION['flash_error']);
-}
+$conn->close();
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Forgot Password - Health Record Management</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: 'Inter', sans-serif;
-    background: #5a1a1a; /* Maroon background */
-    color: #333;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    position: relative;
-    overflow: hidden;
-  }
-
-  /* Background image - always present but covered by gradient */
-  .background-image {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: url('OIP.jpg') center/cover no-repeat;
-    z-index: -2;
-    opacity: 0;
-    animation: imagePulse 9s infinite;
-  }
-
-  /* Animated gradient mask that reveals the image */
-  .gradient-mask {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(-45deg, #8e0e00, #a71d31, #3c0d0d, #5a1a1a);
-    background-size: 400% 400%;
-    animation: gradientBG 12s ease infinite;
-    z-index: -1;
-    opacity: 1;
-    mask-image: linear-gradient(to right, transparent 0%, black 25%, black 75%, transparent 100%);
-    mask-size: 200% 100%;
-    mask-position: -100% 0;
-    animation: gradientBG 12s ease infinite, waveReveal 12s ease infinite;
-  }
-
-  /* Keyframes for gradient movement - 1 second maroon */
-  @keyframes gradientBG {
-    0%, 11.1% { 
-      background-position: 0% 50%; 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forgot Password - Rentify</title>
+    <style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
     }
-    33.3%, 50% { 
-      background-position: 100% 50%; 
+    
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: #1f2937;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
     }
-    66.6%, 88.9% { 
-      background-position: 0% 50%; 
+    
+    .container {
+        background: #111827;
+        border: 1px solid #374151;
+        border-radius: 0.5rem;
+        padding: 2rem;
+        width: 100%;
+        max-width: 28rem;
     }
-    100% { 
-      background-position: 0% 50%; 
+    
+    .logo {
+        text-align: center;
+        margin-bottom: 1.5rem;
     }
-  }
-
-  /* Keyframes for revealing the image through the wave */
-  @keyframes waveReveal {
-    0%, 11.1% {
-      mask-position: -100% 0;
+    
+    .logo h1 {
+        color: #14b8a6;
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        font-weight: bold;
     }
-    33.3% {
-      mask-position: 0% 0;
+    
+    .logo p {
+        color: #9ca3af;
+        font-size: 1.1rem;
     }
-    50% {
-      mask-position: 100% 0;
+    
+    .form-group {
+        margin-bottom: 1rem;
     }
-    66.6% {
-      mask-position: 0% 0;
+    
+    label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #f3f4f6;
+        font-weight: 500;
     }
-    88.9%, 100% {
-      mask-position: -100% 0;
+    
+    input[type="email"],
+    input[type="text"],
+    input[type="password"] {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #374151;
+        background: #111827;
+        color: #f3f4f6;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+        transition: all 0.3s;
     }
-  }
-
-  /* Make the image visible only during the wave */
-  @keyframes imagePulse {
-    0%, 11.1% {
-      opacity: 0;
+    
+    input[type="email"]:focus,
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+        outline: none;
+        border-color: #0d9488;
+        box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.2);
     }
-    33.3%, 50% {
-      opacity: 1;
+    
+    .btn {
+        width: 100%;
+        padding: 0.75rem;
+        background: #0d9488;
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.3s;
     }
-    66.6%, 100% {
-      opacity: 0;
+    
+    .btn:hover:not(:disabled) {
+        background: #0f766e;
     }
-  }
-
-  header {
-    text-align: center;
-    padding: 2rem 1rem 1rem;
-    position: relative;
-    z-index: 1;
-  }
-
-  header h1 {
-    font-size: 1.8rem;
-    color: white;
-    font-weight: 700;
-    line-height: 1.4;
-    text-shadow: 0 2px 6px rgba(0,0,0,0.4);
-  }
-
-  .container {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 2rem;
-    position: relative;
-    z-index: 1;
-  }
-
-  .card {
-    background: #fff;
-    width: 100%;
-    max-width: 420px;
-    padding: 2.5rem 2rem;
-    border-radius: 18px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-    animation: fadeInUp 0.6s ease;
-    text-align: center;
-  }
-
-  .logo {
-    margin-bottom: 1.2rem;
-  }
-
-  .logo img {
-    width: 90px;
-    height: 90px;
-    object-fit: cover;
-    border-radius: 50%;
-    border: 3px solid #a71d31;
-    background: #fff;
-    padding: 4px;
-    box-shadow: 0 4px 12px rgba(167, 29, 49, 0.4);
-  }
-
-  .card h2 {
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: #2c2c2c;
-    margin-bottom: 1.8rem;
-  }
-
-  .step-indicator {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 2rem;
-    position: relative;
-  }
-
-  .step-indicator::before {
-    content: '';
-    position: absolute;
-    top: 15px;
-    left: 10%;
-    right: 10%;
-    height: 2px;
-    background: #ddd;
-    z-index: 1;
-  }
-
-  .step {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    background: #ddd;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    color: #666;
-    position: relative;
-    z-index: 2;
-  }
-
-  .step.active {
-    background: #a71d31;
-    color: white;
-  }
-
-  .step.completed {
-    background: #4caf50;
-    color: white;
-  }
-
-  .step-label {
-    position: absolute;
-    top: 35px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.7rem;
-    white-space: nowrap;
-    color: #666;
-  }
-
-  .success, .error {
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 1.5rem;
-    text-align: center;
-    font-weight: 600;
-  }
-
-  .success {
-    background: #eafaf1;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-  }
-
-  .error {
-    background: #fdecea;
-    color: #b71c1c;
-    border: 1px solid #f5c6cb;
-  }
-
-  .form-control {
-    margin-bottom: 1.2rem;
-  }
-
-  input[type="email"],
-  input[type="text"],
-  input[type="password"] {
-    width: 100%;
-    padding: 14px 15px;
-    border: 1.8px solid #d1d9e6;
-    border-radius: 10px;
-    font-size: 1rem;
-    transition: all 0.3s ease;
-    background-color: #fafafa;
-  }
-
-  input:focus {
-    border-color: #a71d31;
-    background: #fff;
-    box-shadow: 0 0 8px rgba(167, 29, 49, 0.4);
-    outline: none;
-  }
-
-  .otp-input {
-    font-size: 1.2rem !important;
-    text-align: center;
-    letter-spacing: 8px;
-    font-weight: bold;
-  }
-
-  button {
-    width: 100%;
-    padding: 14px 0;
-    background: linear-gradient(135deg, #6e0b14, #a71d31);
-    border: none;
-    border-radius: 12px;
-    font-size: 1.1rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    color: white;
-    box-shadow: 0 4px 15px rgba(167, 29, 49, 0.4);
-  }
-
-  button:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(167, 29, 49, 0.6);
-  }
-
-  button:disabled {
-    background: #cccccc;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-  }
-
-  .back-link {
-    display: block;
-    margin-top: 1.5rem;
-    color: #6e0b14;
-    font-weight: 600;
-    text-decoration: none;
-    transition: color 0.3s ease;
-  }
-
-  .back-link:hover {
-    color: #a71d31;
-    text-decoration: underline;
-  }
-
-  .resend-otp {
-    margin-top: 1rem;
-    font-size: 0.9rem;
-    color: #666;
-  }
-
-  .resend-otp a {
-    color: #a71d31;
-    text-decoration: none;
-    font-weight: 600;
-  }
-
-  .resend-otp a:hover:not(.disabled) {
-    text-decoration: underline;
-  }
-
-  .resend-otp a.disabled {
-    color: #999;
-    cursor: not-allowed;
-    text-decoration: none;
-  }
-
-  .timer {
-    font-weight: bold;
-    color: #a71d31;
-  }
-
-  .resend-button {
-    background: none;
-    border: none;
-    color: #a71d31;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 0;
-    text-decoration: underline;
-    font-size: 0.9rem;
-    font-family: inherit;
-  }
-
-  .resend-button:hover:not(:disabled) {
-    text-decoration: underline;
-  }
-
-  .resend-button:disabled {
-    color: #999;
-    cursor: not-allowed;
-    text-decoration: none;
-  }
-
-  footer {
-    text-align: center;
-    padding: 1.5rem 1rem;
-    font-size: 0.9rem;
-    color: #f1f1f1;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.4);
-    position: relative;
-    z-index: 1;
-  }
-
-  @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @media (max-width: 480px) {
-    header h1 { font-size: 1.4rem; }
-    .card { padding: 2rem 1.5rem; }
-    .step-label { font-size: 0.6rem; }
-  }
+    
+    .btn:disabled {
+        background: #6b7280;
+        cursor: not-allowed;
+    }
+    
+    .alert {
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        text-align: center;
+        border: 1px solid;
+    }
+    
+    .alert-success {
+        background: #064e3b;
+        color: #a7f3d0;
+        border-color: #047857;
+    }
+    
+    .alert-error {
+        background: #7f1d1d;
+        color: #fecaca;
+        border-color: #dc2626;
+    }
+    
+    .login-link {
+        text-align: center;
+        margin-top: 1rem;
+    }
+    
+    .login-link a {
+        color: #14b8a6;
+        text-decoration: none;
+        transition: color 0.3s;
+    }
+    
+    .login-link a:hover {
+        color: #99f6e4;
+        text-decoration: underline;
+    }
+    
+    .step-info {
+        text-align: center;
+        color: #9ca3af;
+        margin-bottom: 1rem;
+        font-size: 0.875rem;
+    }
+    
+    .resend-info {
+        text-align: center;
+        margin-top: 0.75rem;
+        font-size: 0.875rem;
+        color: #9ca3af;
+    }
+    
+    .timer {
+        color: #ef4444;
+        font-weight: bold;
+    }
+    
+    .cooldown-message {
+        background: #78350f;
+        color: #fef3c7;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        text-align: center;
+        margin-bottom: 1rem;
+        border: 1px solid #d97706;
+        font-size: 0.875rem;
+    }
 </style>
 </head>
 <body>
+    <div class="container">
+        <div class="logo">
+            <h1>Rentify</h1>
+            <p>Reset Your Password</p>
+        </div>
 
-<!-- Background image that will be revealed -->
-<div class="background-image"></div>
-
-<!-- Gradient mask that will animate and reveal the image -->
-<div class="gradient-mask"></div>
-
-<header>
-  <h1>Health Record Management System<br>Batangas Eastern Colleges</h1>
-</header>
-
-<div class="container">
-  <div class="card">
-    <div class="logo">
-      <img src="logo.png" alt="School Logo">
-    </div>
-    <h2 id="pageTitle">Forgot Password</h2>
-
-    <!-- Step Indicator -->
-    <div class="step-indicator">
-      <div class="step <?= $step >= 1 ? 'active' : '' ?> <?= $step > 1 ? 'completed' : '' ?>">
-        1
-        <div class="step-label">Email</div>
-      </div>
-      <div class="step <?= $step >= 2 ? 'active' : '' ?> <?= $step > 2 ? 'completed' : '' ?>">
-        2
-        <div class="step-label">OTP</div>
-      </div>
-      <div class="step <?= $step >= 3 ? 'active' : '' ?>">
-        3
-        <div class="step-label">Password</div>
-      </div>
-    </div>
-
-    <?php if ($success): ?>
-      <p class="success" role="alert"><?= htmlspecialchars($success) ?></p>
-    <?php elseif ($error): ?>
-      <p class="error" role="alert"><?= htmlspecialchars($error) ?></p>
-    <?php endif; ?>
-
-    <!-- Step 1: Email Input -->
-    <?php if ($step === 1): ?>
-    <form method="POST" novalidate>
-      <div class="form-control">
-        <input 
-          type="email" 
-          name="email" 
-          placeholder="Enter your email" 
-          required 
-          aria-required="true"
-          value="<?= isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '' ?>"
-        />
-      </div>
-      <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>" />
-      <button type="submit">Send OTP</button>
-    </form>
-    <?php endif; ?>
-
-    <!-- Step 2: OTP Input -->
-    <?php if ($step === 2): ?>
-    <form method="POST" novalidate id="otpForm">
-      <div class="form-control">
-        <input 
-          type="text" 
-          name="otp" 
-          placeholder="Enter 6-digit OTP" 
-          required 
-          aria-required="true"
-          maxlength="6"
-          pattern="[0-9]{6}"
-          class="otp-input"
-        />
-      </div>
-      <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>" />
-      <button type="submit">Verify OTP</button>
-      <div class="resend-otp">
-        <?php if ($remaining_time > 0): ?>
-          <span class="timer">Resend available in <span id="countdown"><?= $remaining_time ?></span> seconds</span>
-        <?php else: ?>
-          <form method="POST" style="display: inline;">
-            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>" />
-            <input type="hidden" name="resend_otp" value="1" />
-            <button type="submit" class="resend-button">Resend OTP</button>
-          </form>
+        <?php if (isset($error)): ?>
+            <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
-      </div>
-    </form>
-    <?php endif; ?>
 
-    <!-- Step 3: New Password Input -->
-    <?php if ($step === 3): ?>
-    <form method="POST" novalidate>
-      <div class="form-control">
-        <input 
-          type="password" 
-          name="new_password" 
-          placeholder="New password (min. 8 characters)" 
-          required 
-          aria-required="true"
-          minlength="8"
-        />
-      </div>
-      <div class="form-control">
-        <input 
-          type="password" 
-          name="confirm_password" 
-          placeholder="Confirm new password" 
-          required 
-          aria-required="true"
-          minlength="8"
-        />
-      </div>
-      <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>" />
-      <button type="submit">Reset Password</button>
-    </form>
-    <?php endif; ?>
+        <?php if (isset($success)): ?>
+            <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
+        <?php endif; ?>
 
-    <a href="backtologin.php" class="back-link">← Back to Login</a>
-  </div>
-</div>
+        <?php if (!isset($show_otp_form) && !isset($show_password_form)): ?>
+            <!-- Step 1: Request OTP Form -->
+            <div class="step-info">Step 1: Enter your email address</div>
+            <form method="POST" action="" id="emailForm">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" required 
+                           value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
+                </div>
+                <button type="submit" name="request_otp" class="btn" id="submitBtn">Send OTP</button>
+            </form>
+        <?php endif; ?>
 
-<footer>
-  <p>&copy; <?= date("Y") ?> Batangas Eastern Colleges | Health Record Management System</p>
-</footer>
+        <?php if (isset($show_otp_form)): ?>
+            <!-- Step 2: Verify OTP Form -->
+            <div class="step-info">Step 2: Enter OTP sent to your email</div>
+            
+            <?php 
+            $email = $_SESSION['reset_email'] ?? '';
+            $time_left = getTimeUntilNextOTP($email);
+            if ($time_left > 0): ?>
+                <div class="cooldown-message">
+                    You can request a new OTP in <span class="timer" id="cooldownTimer"><?php echo ceil($time_left / 60); ?></span> minutes
+                </div>
+            <?php endif; ?>
+            
+            <form method="POST" action="">
+                <div class="form-group">
+                    <label for="otp">6-Digit OTP</label>
+                    <input type="text" id="otp" name="otp" required maxlength="6" 
+                           pattern="[0-9]{6}" title="Please enter 6-digit OTP" autocomplete="off">
+                </div>
+                <button type="submit" name="verify_otp" class="btn">Verify OTP</button>
+            </form>
+            <div class="resend-info">
+                OTP is valid for 10 minutes. Didn't receive it? 
+                <?php if ($time_left > 0): ?>
+                    <span style="color: #dc3545;">Wait <?php echo ceil($time_left / 60); ?> minutes to resend</span>
+                <?php else: ?>
+                    <a href="?resend=true">Resend OTP</a>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
 
-<script>
-// Countdown timer for OTP resend
-<?php if ($step === 2 && $remaining_time > 0): ?>
-let timeLeft = <?= $remaining_time ?>;
-const countdownElement = document.getElementById('countdown');
+        <?php if (isset($show_password_form)): ?>
+            <!-- Step 3: Reset Password Form -->
+            <div class="step-info">Step 3: Set your new password</div>
+            <form method="POST" action="">
+                <div class="form-group">
+                    <label for="new_password">New Password</label>
+                    <input type="password" id="new_password" name="new_password" required 
+                           minlength="6" placeholder="At least 6 characters">
+                </div>
+                <div class="form-group">
+                    <label for="confirm_password">Confirm Password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required 
+                           minlength="6" placeholder="Re-enter your new password">
+                </div>
+                <button type="submit" name="reset_password" class="btn">Reset Password</button>
+            </form>
+        <?php endif; ?>
 
-const countdownTimer = setInterval(function() {
-    timeLeft--;
-    countdownElement.textContent = timeLeft;
-    
-    if (timeLeft <= 0) {
-        clearInterval(countdownTimer);
-        location.reload(); // Reload to show the resend button
-    }
-}, 1000);
-<?php endif; ?>
+        <?php if (isset($show_login_link)): ?>
+            <!-- Success message with login link -->
+            <div class="login-link">
+                <a href="login.php" class="btn">Go to Login</a>
+            </div>
+        <?php else: ?>
+            <div class="login-link">
+                <a href="login.php">← Back to Login</a>
+            </div>
+        <?php endif; ?>
+    </div>
 
-// Auto-submit OTP when 6 digits are entered
-document.addEventListener('DOMContentLoaded', function() {
-    const otpInput = document.querySelector('.otp-input');
-    if (otpInput) {
-        otpInput.addEventListener('input', function() {
-            if (this.value.length === 6) {
-                document.getElementById('otpForm').submit();
+    <script>
+        // Client-side validation and anti-spam
+        document.addEventListener('DOMContentLoaded', function() {
+            const forms = document.querySelectorAll('form');
+            
+            forms.forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    const password = form.querySelector('input[name="new_password"]');
+                    const confirmPassword = form.querySelector('input[name="confirm_password"]');
+                    
+                    if (password && confirmPassword) {
+                        if (password.value !== confirmPassword.value) {
+                            e.preventDefault();
+                            alert('Passwords do not match!');
+                            return false;
+                        }
+                        
+                        if (password.value.length < 6) {
+                            e.preventDefault();
+                            alert('Password must be at least 6 characters long!');
+                            return false;
+                        }
+                    }
+                    
+                    const otpInput = form.querySelector('input[name="otp"]');
+                    if (otpInput) {
+                        const otp = otpInput.value;
+                        if (!/^\d{6}$/.test(otp)) {
+                            e.preventDefault();
+                            alert('Please enter a valid 6-digit OTP!');
+                            return false;
+                        }
+                    }
+                });
+            });
+
+            // Cooldown timer for OTP resend
+            const cooldownTimer = document.getElementById('cooldownTimer');
+            if (cooldownTimer) {
+                let timeLeft = parseInt(cooldownTimer.textContent) * 60; // Convert to seconds
+                
+                const timerInterval = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        location.reload(); // Reload to show resend option
+                    } else {
+                        const minutes = Math.ceil(timeLeft / 60);
+                        cooldownTimer.textContent = minutes;
+                    }
+                }, 1000);
+            }
+
+            // Simple button disable to prevent double-clicks (but allow form submission)
+            const submitBtn = document.getElementById('submitBtn');
+            if (submitBtn) {
+                const form = submitBtn.closest('form');
+                form.addEventListener('submit', function() {
+                    // Only disable after form is actually submitted
+                    setTimeout(() => {
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'Sending OTP...';
+                    }, 100);
+                });
             }
         });
-    }
-});
-</script>
-
+    </script>
 </body>
 </html>
