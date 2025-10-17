@@ -1,12 +1,23 @@
 <?php
-include '../db_connect.php';
+include 'db_connect.php';
 
-$conversation_id = $_GET['conversation_id'];
-$user_id = $_GET['user_id'];
-$is_typing = $_GET['is_typing'];
+$car_id = $_GET['car_id'] ?? null;
+$user_id = $_GET['user_id'] ?? null;
+$is_typing = $_GET['is_typing'] ?? 0;
 
-$stmt = $conn->prepare("INSERT INTO TypingIndicators (user_id, conversation_id, is_typing) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE is_typing = ?, last_updated = CURRENT_TIMESTAMP");
-$stmt->bind_param('iiii', $user_id, $conversation_id, $is_typing, $is_typing);
-$stmt->execute();
+if (!$car_id || !$user_id) {
+    http_response_code(400);
+    echo 'Missing parameters';
+    exit;
+}
+
+$stmt = $conn->prepare("INSERT INTO Typing (car_id, user_id, is_typing, last_updated) VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE is_typing = ?, last_updated = NOW()");
+$stmt->bind_param("iiii", $car_id, $user_id, $is_typing, $is_typing);
+if ($stmt->execute()) {
+    echo 'Typing status updated';
+} else {
+    http_response_code(500);
+    echo 'Error: ' . $stmt->error;
+}
 $stmt->close();
 ?>

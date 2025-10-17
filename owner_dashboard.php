@@ -451,68 +451,81 @@ $stmt_available->close();
             <h3 class="text-xl font-semibold mb-4">Messages</h3>
             <?php
             // Fetch messages for the owner's cars
+            // Changed `sent_at` to `created_at` to match common database conventions
             $sql_messages = "
-                SELECT m.message_id, m.car_id, m.sender_id, m.receiver_id, m.message_text, m.sent_at, m.is_read,
-                       c.brand, c.model, u.name as sender_name
+                SELECT m.message_id, m.car_id, m.sender_id, m.receiver_id, m.message AS message_text, m.created_at, m.is_read,
+                       c.brand, c.model, u.name AS sender_name
                 FROM Messages m
                 JOIN Cars c ON m.car_id = c.car_id
                 JOIN Users u ON m.sender_id = u.user_id
                 WHERE c.owner_id = ? AND m.receiver_id = ?
-                ORDER BY m.sent_at DESC";
+                ORDER BY m.created_at DESC";
             $stmt_messages = $conn->prepare($sql_messages);
-            $stmt_messages->bind_param("ii", $owner_id, $user['user_id']);
-            $stmt_messages->execute();
-            $result_messages = $stmt_messages->get_result();
+            if ($stmt_messages === false) {
+                error_log("Messages query preparation failed: " . $conn->error);
+                echo '<p class="text-red-400">Error preparing messages query: ' . htmlspecialchars($conn->error) . '</p>';
+            } else {
+                $stmt_messages->bind_param("ii", $owner_id, $user['user_id']);
+                if ($stmt_messages->execute()) {
+                    $result_messages = $stmt_messages->get_result();
 
-            // Group messages by car_id and sender_id
-            $conversations = [];
-            while ($row = $result_messages->fetch_assoc()) {
-                $conversation_key = $row['car_id'] . '-' . $row['sender_id'];
-                if (!isset($conversations[$conversation_key])) {
-                    $conversations[$conversation_key] = [
-                        'car_id' => $row['car_id'],
-                        'brand' => $row['brand'],
-                        'model' => $row['model'],
-                        'sender_id' => $row['sender_id'],
-                        'sender_name' => $row['sender_name'],
-                        'messages' => [],
-                        'unread_count' => 0,
-                    ];
-                }
-                $conversations[$conversation_key]['messages'][] = $row;
-                if (!$row['is_read'] && $row['sender_id'] != $user['user_id']) {
-                    $conversations[$conversation_key]['unread_count']++;
+                    // Group messages by car_id and sender_id
+                    $conversations = [];
+                    while ($row = $result_messages->fetch_assoc()) {
+                        $conversation_key = $row['car_id'] . '-' . $row['sender_id'];
+                        if (!isset($conversations[$conversation_key])) {
+                            $conversations[$conversation_key] = [
+                                'car_id' => $row['car_id'],
+                                'brand' => $row['brand'],
+                                'model' => $row['model'],
+                                'sender_id' => $row['sender_id'],
+                                'sender_name' => $row['sender_name'],
+                                'messages' => [],
+                                'unread_count' => 0,
+                            ];
+                        }
+                        $conversations[$conversation_key]['messages'][] = $row;
+                        if (!$row['is_read'] && $row['sender_id'] != $user['user_id']) {
+                            $conversations[$conversation_key]['unread_count']++;
+                        }
+                    }
+                    $stmt_messages->close();
+                    ?>
+                    <div class="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
+                        <?php if (empty($conversations)): ?>
+                            <p class="text-gray-300">No messages yet.</p>
+                        <?php else: ?>
+                            <div class="space-y-4">
+                                <?php foreach ($conversations as $conv): ?>
+                                    <div class="border-b border-gray-700 pb-4">
+                                        <div class="flex justify-between items-center">
+                                            <h4 class="text-lg font-semibold">
+                                                <?php echo htmlspecialchars($conv['brand'] . ' ' . $conv['model']); ?> - 
+                                                <?php echo htmlspecialchars($conv['sender_name']); ?>
+                                                <?php if ($conv['unread_count'] > 0): ?>
+                                                    <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                                                        <?php echo $conv['unread_count']; ?> Unread
+                                                    </span>
+                                                <?php endif; ?>
+                                            </h4>
+                                            <a href="chat.php?car_id=<?php echo $conv['car_id']; ?>&customer_id=<?php echo $conv['sender_id']; ?>" 
+                                               class="bg-blue-500 text-gray-100 px-4 py-2 rounded-lg hover:bg-blue-600 transition">
+                                                View Conversation
+                                            </a>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php
+                } else {
+                    error_log("Messages query execution failed: " . $stmt_messages->error);
+                    echo '<p class="text-red-400">Error executing messages query: ' . htmlspecialchars($stmt_messages->error) . '</p>';
+                    $stmt_messages->close();
                 }
             }
-            $stmt_messages->close();
             ?>
-            <div class="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
-                <?php if (empty($conversations)): ?>
-                    <p class="text-gray-300">No messages yet.</p>
-                <?php else: ?>
-                    <div class="space-y-4">
-                        <?php foreach ($conversations as $conv): ?>
-                            <div class="border-b border-gray-700 pb-4">
-                                <div class="flex justify-between items-center">
-                                    <h4 class="text-lg font-semibold">
-                                        <?php echo htmlspecialchars($conv['brand'] . ' ' . $conv['model']); ?> - 
-                                        <?php echo htmlspecialchars($conv['sender_name']); ?>
-                                        <?php if ($conv['unread_count'] > 0): ?>
-                                            <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                                                <?php echo $conv['unread_count']; ?> Unread
-                                            </span>
-                                        <?php endif; ?>
-                                    </h4>
-                                    <a href="chat.php?car_id=<?php echo $conv['car_id']; ?>&sender_id=<?php echo $conv['sender_id']; ?>" 
-                                       class="bg-blue-500 text-gray-100 px-4 py-2 rounded-lg hover:bg-blue-600 transition">
-                                        View Conversation
-                                    </a>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
         </div>
 
         <!-- Earnings & Payments -->

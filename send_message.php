@@ -1,27 +1,26 @@
 <?php
-include 'db_connect.php';
-include 'auth.php';  // Validate token if needed
+include '../db_connect.php';
 
-$conversation_id = $_POST['conversation_id'];
-$sender_id = $_POST['sender_id'];
-$receiver_id = $_POST['receiver_id'];
-$message = htmlspecialchars($_POST['message']);
-$type = $_POST['type'];
+$car_id = $_POST['car_id'] ?? null;
+$sender_id = $_POST['sender_id'] ?? null;
+$receiver_id = $_POST['receiver_id'] ?? null;
+$message = $_POST['message'] ?? null;
+$type = $_POST['type'] ?? 'text';
+$file_path = $type === 'file' ? $message : '';
 
-$stmt = $conn->prepare("INSERT INTO Messages (conversation_id, sender_id, receiver_id, message, type) VALUES (?, ?, ?, ?, ?)");
-$stmt->bind_param('iiiss', $conversation_id, $sender_id, $receiver_id, $message, $type);
-$stmt->execute();
-$stmt->close();
-echo 'success';
-
-// In send_message.php
-if ($type == 'file') {
-    $file_path = 'uploads/' . $message;  // $message is filename from upload
-    $stmt = $conn->prepare("INSERT INTO Messages (conversation_id, sender_id, receiver_id, file_path, type) VALUES (?, ?, ?, ?, ?)");
-    $stmt->bind_param('iiiss', $conversation_id, $sender_id, $receiver_id, $file_path, $type);
-} else {
-    $stmt = $conn->prepare("INSERT INTO Messages (conversation_id, sender_id, receiver_id, message, type) VALUES (?, ?, ?, ?, ?)");
-    $stmt->bind_param('iiiss', $conversation_id, $sender_id, $receiver_id, $message, $type);
+if (!$car_id || !$sender_id || !$receiver_id || !$message) {
+    http_response_code(400);
+    echo 'Missing parameters';
+    exit;
 }
-$stmt->execute();
+
+$stmt = $conn->prepare("INSERT INTO Messages (car_id, sender_id, receiver_id, message, file_path, sent_at, is_read) VALUES (?, ?, ?, ?, ?, NOW(), FALSE)");
+$stmt->bind_param("iiiss", $car_id, $sender_id, $receiver_id, $message, $file_path);
+if ($stmt->execute()) {
+    echo 'Message sent';
+} else {
+    http_response_code(500);
+    echo 'Error: ' . $stmt->error;
+}
+$stmt->close();
 ?>

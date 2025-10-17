@@ -1,18 +1,23 @@
 <?php
-header('Content-Type: application/json');
-include '../db_connect.php';
+include 'db_connect.php';
 
-$conversation_id = $_GET['conversation_id'];
-$user_id = $_GET['user_id'];
+$car_id = $_GET['car_id'] ?? null;
+$user_id = $_GET['user_id'] ?? null;
 
-// Clean old typing (if >5s old)
-$conn->query("UPDATE TypingIndicators SET is_typing = 0 WHERE last_updated < NOW() - INTERVAL 5 SECOND");
+if (!$car_id || !$user_id) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Missing parameters']);
+    exit;
+}
 
-$stmt = $conn->prepare("SELECT is_typing FROM TypingIndicators WHERE user_id = ? AND conversation_id = ?");
-$stmt->bind_param('ii', $user_id, $conversation_id);
-$stmt->execute();
-$result = $stmt->get_result();
-$row = $result->fetch_assoc();
-$stmt->close();
-echo json_encode(['is_typing' => $row['is_typing'] ?? 0]);
+$stmt = $conn->prepare("SELECT is_typing FROM Typing WHERE car_id = ? AND user_id = ? AND last_updated >= DATE_SUB(NOW(), INTERVAL 5 SECOND)");
+$stmt->bind_param("ii", $car_id, $user_id);
+if ($stmt->execute()) {
+    $result = $stmt->get_result();
+    $is_typing = $result->num_rows > 0 ? $result->fetch_assoc()['is_typing'] : false;
+    echo json_encode(['is_typing' => $is_typing]);
+} else {
+    http_response_code(500);
+    echo json_encode(['error' => 'Query failed: ' . $stmt->error]);
+}
 ?>
