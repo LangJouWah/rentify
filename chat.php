@@ -42,7 +42,7 @@ if ($is_owner) {
 $current_user_id = $user['user_id'];
 
 // Fetch other user's name for display
-$stmt = $conn->prepare("SELECT name FROM Users WHERE user_id = ?");
+$stmt = $conn->prepare("SELECT name FROM users WHERE user_id = ?");
 $stmt->bind_param('i', $other_user_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -185,7 +185,7 @@ $stmt->close();
             formData.append('message', content);
             formData.append('type', type);
 
-            fetch('ajax/send_message.php', { method: 'POST', body: formData })
+            fetch('send_message.php', { method: 'POST', body: formData })
                 .then(res => res.text())
                 .then(() => getMessages());
         }
@@ -197,7 +197,7 @@ $stmt->close();
             formData.append('sender_id', currentUserId);
             formData.append('receiver_id', otherUserId);
 
-            fetch('ajax/upload_file.php', { method: 'POST', body: formData })
+            fetch('upload_file.php', { method: 'POST', body: formData })
                 .then(res => res.text())
                 .then(path => {
                     if (path) sendMessage(path, 'file');
@@ -205,7 +205,7 @@ $stmt->close();
         }
 
         function getMessages() {
-            fetch(`ajax/get_messages.php?car_id=${carId}&current_user_id=${currentUserId}&other_user_id=${otherUserId}&is_owner=${isOwner}`)
+            fetch(`get_messages.php?car_id=${carId}&current_user_id=${currentUserId}&other_user_id=${otherUserId}&is_owner=${isOwner}`)
                 .then(res => res.json())
                 .then(messages => {
                     const chatBox = document.getElementById('chat-box');
@@ -225,11 +225,11 @@ $stmt->close();
         }
 
         function setTyping(isTyping) {
-            fetch(`ajax/set_typing.php?car_id=${carId}&user_id=${currentUserId}&is_typing=${isTyping ? 1 : 0}`);
+            fetch(`set_typing.php?car_id=${carId}&user_id=${currentUserId}&is_typing=${isTyping ? 1 : 0}`);
         }
 
         function getTyping() {
-            fetch(`ajax/get_typing.php?car_id=${carId}&user_id=${otherUserId}`)
+            fetch(`get_typing.php?car_id=${carId}&user_id=${otherUserId}`)
                 .then(res => res.json())
                 .then(data => {
                     document.getElementById('typing-indicator').textContent = data.is_typing ? 'Typing...' : '';

@@ -1,5 +1,5 @@
 <?php
-include '../db_connect.php';
+include 'db_connect.php';
 
 $car_id = $_GET['car_id'] ?? null;
 $current_user_id = $_GET['current_user_id'] ?? null;
@@ -48,7 +48,7 @@ if ($stmt->execute()) {
         ];
     }
     // Mark messages as read for the current user
-    $update_stmt = $conn->prepare("UPDATE Messages SET is_read = TRUE WHERE car_id = ? AND receiver_id = ? AND sender_id = ?");
+    $update_stmt = $conn->prepare("UPDATE messages SET is_read = TRUE WHERE car_id = ? AND receiver_id = ? AND sender_id = ?");
     $update_stmt->bind_param("iii", $car_id, $current_user_id, $other_user_id);
     $update_stmt->execute();
     $update_stmt->close();

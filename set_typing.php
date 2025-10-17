@@ -11,7 +11,7 @@ if (!$car_id || !$user_id) {
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO Typing (car_id, user_id, is_typing, last_updated) VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE is_typing = ?, last_updated = NOW()");
+$stmt = $conn->prepare("INSERT INTO typing (car_id, user_id, is_typing, last_updated) VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE is_typing = ?, last_updated = NOW()");
 $stmt->bind_param("iiii", $car_id, $user_id, $is_typing, $is_typing);
 if ($stmt->execute()) {
     echo 'Typing status updated';

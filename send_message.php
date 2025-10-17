@@ -14,7 +14,7 @@ if (!$car_id || !$sender_id || !$receiver_id || !$message) {
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO Messages (car_id, sender_id, receiver_id, message, file_path, sent_at, is_read) VALUES (?, ?, ?, ?, ?, NOW(), FALSE)");
+$stmt = $conn->prepare("INSERT INTO messages (car_id, sender_id, receiver_id, message, file_path, sent_at, is_read) VALUES (?, ?, ?, ?, ?, NOW(), FALSE)");
 $stmt->bind_param("iiiss", $car_id, $sender_id, $receiver_id, $message, $file_path);
 if ($stmt->execute()) {
     echo 'Message sent';

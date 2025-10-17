@@ -10,7 +10,7 @@ if (!$car_id || !$user_id) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT is_typing FROM Typing WHERE car_id = ? AND user_id = ? AND last_updated >= DATE_SUB(NOW(), INTERVAL 5 SECOND)");
+$stmt = $conn->prepare("SELECT is_typing FROM typing WHERE car_id = ? AND user_id = ? AND last_updated >= DATE_SUB(NOW(), INTERVAL 5 SECOND)");
 $stmt->bind_param("ii", $car_id, $user_id);
 if ($stmt->execute()) {
     $result = $stmt->get_result();
