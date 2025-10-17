@@ -8,177 +8,229 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <style>
-        :root {
-            --primary-blue: #007bff;
-            --primary-white: #ffffff;
-            --primary-gray: #343a40;
-            --primary-gradient: linear-gradient(to right, #0056b3, var(--primary-blue));
-            --text-muted: #6c757d;
-            --white-space: 5rem;
-        }
+    :root {
+        --primary-teal: #0d9488;
+        --primary-dark: #111827;
+        --secondary-dark: #1f2937;
+        --border-gray: #374151;
+        --text-light: #f3f4f6;
+        --text-muted: #9ca3af;
+        --white-space: 5rem;
+    }
 
-        body {
-            font-family: 'Arial', sans-serif;
-            color: var(--primary-gray);
-            background-color: var(--primary-white);
-        }
+    body {
+        font-family: 'Arial', sans-serif;
+        color: var(--text-light);
+        background-color: var(--primary-dark);
+    }
 
-        .navbar {
-            background: var(--primary-gradient);
-            transition: all 0.3s ease;
-        }
+    .navbar {
+        background: var(--primary-dark);
+        border-bottom: 1px solid var(--border-gray);
+        transition: all 0.3s ease;
+    }
 
-        .navbar-brand {
-            color: var(--primary-white) !important;
-            font-weight: bold;
-            font-size: 1.5rem;
-        }
+    .navbar-brand {
+        color: var(--primary-teal) !important;
+        font-weight: bold;
+        font-size: 1.5rem;
+    }
 
-        .nav-link {
-            color: var(--primary-white) !important;
-            transition: color 0.3s ease;
-        }
+    .nav-link {
+        color: var(--text-light) !important;
+        transition: color 0.3s ease;
+    }
 
-        .nav-link:hover {
-            color: #80bdff !important; /* Lighter blue for hover */
-        }
+    .nav-link:hover {
+        color: var(--primary-teal) !important;
+    }
 
-        .hero {
-            background: var(--primary-gradient);
-            color: var(--primary-white);
-            padding: var(--white-space) 0;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
+    .hero {
+        background: var(--secondary-dark);
+        color: var(--text-light);
+        padding: var(--white-space) 0;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        border-bottom: 1px solid var(--border-gray);
+    }
 
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: url('https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1920&q=80') no-repeat center center/cover;
-            opacity: 0.2;
-            z-index: 1;
-        }
+    .hero::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: url('https://via.placeholder.com/1920x600?text=Hero+Image') no-repeat center center/cover;
+        opacity: 0.1;
+        z-index: 1;
+    }
 
-        .hero-content {
-            position: relative;
-            z-index: 2;
-        }
+    .hero-content {
+        position: relative;
+        z-index: 2;
+    }
 
+    .hero h1 {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        transition: transform 0.3s ease;
+        color: var(--text-light);
+    }
+
+    .hero h1:hover {
+        transform: scale(1.05);
+    }
+
+    .search-form {
+        max-width: 800px;
+        margin: 0 auto;
+        background: var(--primary-dark);
+        padding: 2rem;
+        border-radius: 10px;
+        transition: box-shadow 0.3s ease;
+        border: 1px solid var(--border-gray);
+    }
+
+    .search-form:hover {
+        box-shadow: 0 0 20px rgba(13, 148, 136, 0.3);
+    }
+
+    .search-form input {
+        background-color: var(--secondary-dark);
+        color: var(--text-light);
+        border: 1px solid var(--border-gray);
+    }
+
+    .search-form input::placeholder {
+        color: var(--text-muted);
+    }
+
+    .search-form input:focus {
+        background-color: var(--secondary-dark);
+        color: var(--text-light);
+        border-color: var(--primary-teal);
+        box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.2);
+    }
+
+    .car-card, .feature-card, .testimonial-card {
+        background: var(--primary-dark);
+        border: 1px solid var(--border-gray);
+        border-radius: 10px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        margin-bottom: 2rem;
+        color: var(--text-light);
+    }
+
+    .car-card:hover, .feature-card:hover, .testimonial-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 10px 20px rgba(13, 148, 136, 0.2);
+        border-color: var(--primary-teal);
+    }
+
+    .car-card img {
+        height: 200px;
+        object-fit: cover;
+        border-radius: 10px 10px 0 0;
+    }
+
+    .section-padding {
+        padding: var(--white-space) 0;
+    }
+
+    .btn-primary {
+        background: var(--primary-teal);
+        border: none;
+        color: white;
+        transition: background-color 0.3s ease;
+    }
+
+    .btn-primary:hover {
+        background: #0f766e;
+    }
+
+    .btn-secondary {
+        background-color: var(--secondary-dark);
+        color: var(--text-light);
+        border: 1px solid var(--primary-teal);
+        transition: all 0.3s ease;
+    }
+
+    .btn-secondary:hover {
+        background-color: var(--primary-teal);
+        border-color: var(--primary-teal);
+        color: white;
+    }
+
+    .feature-card svg, .testimonial-card p.text-primary {
+        color: var(--primary-teal);
+    }
+
+    .section-light {
+        background-color: var(--secondary-dark);
+        border-top: 1px solid var(--border-gray);
+        border-bottom: 1px solid var(--border-gray);
+    }
+
+    .bg-dark {
+        background-color: var(--primary-dark) !important;
+        border-top: 1px solid var(--border-gray);
+    }
+
+    .footer {
+        background: var(--primary-dark);
+        color: var(--text-light);
+        padding: 2rem 0;
+        text-align: center;
+        border-top: 1px solid var(--border-gray);
+    }
+
+    .footer a {
+        color: var(--primary-teal);
+        transition: color 0.3s ease;
+        text-decoration: none;
+    }
+
+    .footer a:hover {
+        color: #99f6e4;
+    }
+
+    /* Card body text colors */
+    .card-body {
+        color: var(--text-light);
+    }
+
+    .card-text {
+        color: var(--text-muted);
+    }
+
+    /* List group items */
+    .list-group-item {
+        color: var(--text-light);
+    }
+
+    /* Text muted adjustments */
+    .text-muted {
+        color: var(--text-muted) !important;
+    }
+
+    /* Social icons */
+    .text-primary {
+        color: var(--primary-teal) !important;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
         .hero h1 {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            transition: transform 0.3s ease;
-        }
-
-        .hero h1:hover {
-            transform: scale(1.05);
+            font-size: 2rem;
         }
 
         .search-form {
-            max-width: 800px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 2rem;
-            border-radius: 10px;
-            transition: box-shadow 0.3s ease;
+            padding: 1rem;
         }
-
-        .search-form:hover {
-            box-shadow: 0 0 20px rgba(0, 123, 255, 0.3);
-        }
-
-        .search-form input {
-            background-color: var(--primary-white);
-            color: var(--primary-gray);
-            border: 1px solid var(--primary-blue);
-        }
-
-        .search-form input::placeholder {
-            color: var(--text-muted);
-        }
-
-        .car-card, .feature-card, .testimonial-card {
-            background: var(--primary-white);
-            border: 1px solid #e9ecef;
-            border-radius: 10px;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            margin-bottom: 2rem;
-        }
-
-        .car-card:hover, .feature-card:hover, .testimonial-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 10px 20px rgba(0, 123, 255, 0.2);
-        }
-
-        .car-card img {
-            height: 200px;
-            object-fit: cover;
-        }
-
-        .section-padding {
-            padding: var(--white-space) 0;
-        }
-
-        .btn-primary {
-            background: var(--primary-blue);
-            border: none;
-        }
-
-        .btn-primary:hover {
-            background: #0056b3;
-        }
-
-        .btn-secondary {
-            background-color: var(--primary-gray);
-            color: var(--primary-white);
-            border: 1px solid var(--primary-blue);
-        }
-
-        .btn-secondary:hover {
-            background-color: #23272b;
-            border-color: #0056b3;
-        }
-
-        .feature-card svg, .testimonial-card p.text-primary {
-            color: var(--primary-blue);
-        }
-
-        .section-light {
-            background-color: #f8f9fa;
-        }
-
-        .footer {
-            background: var(--primary-gradient);
-            color: var(--primary-white);
-            padding: 2rem 0;
-            text-align: center;
-        }
-
-        .footer a {
-            color: var(--primary-white);
-            transition: color 0.3s ease;
-        }
-
-        .footer a:hover {
-            color: #80bdff;
-        }
-
-        /* Responsive adjustments */
-        @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 2rem;
-            }
-
-            .search-form {
-                padding: 1rem;
-            }
-        }
-    </style>
+    }
+</style>
 </head>
 <body>
 
@@ -226,7 +278,7 @@
                 <a href="signup.php?role=owner" class="btn btn-primary px-4 py-2">List Your Car</a>
                 <a href="signup.php?role=driver" class="btn btn-secondary px-4 py-2">Book a Car</a>
             </div>
-            <img src="https://images.unsplash.com/photo-1502877338535-766e3a6052c0?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=600&q=80" alt="Car Rental Hero Image" class="mt-4 mx-auto w-100" style="max-width: 600px; border-radius: 10px;">
+            <img src="cars/Honda_city.jpg" alt="Car Rental Hero Image" class="mt-4 mx-auto w-100" style="max-width: 600px; border-radius: 10px;">
         </div>
     </section>
 
@@ -237,7 +289,7 @@
             <div class="row">
                 <div class="col-md-4">
                     <div class="card car-card">
-                        <img src="https://images.unsplash.com/photo-1549317661-bd7c8e4e7b1d?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" class="card-img-top" alt="Tesla Model 3">
+                        <img src="https://via.placeholder.com/400x200?text=Car+1" class="card-img-top" alt="Car 1">
                         <div class="card-body">
                             <h5 class="card-title">Tesla Model 3</h5>
                             <p class="card-text">Electric, 300mi range, $50/day</p>
@@ -247,7 +299,7 @@
                 </div>
                 <div class="col-md-4">
                     <div class="card car-card">
-                        <img src="https://images.unsplash.com/photo-1552519507-da3b142c6e3d?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" class="card-img-top" alt="Toyota Camry">
+                        <img src="https://via.placeholder.com/400x200?text=Car+2" class="card-img-top" alt="Car 2">
                         <div class="card-body">
                             <h5 class="card-title">Toyota Camry</h5>
                             <p class="card-text">Sedan, Fuel-efficient, $40/day</p>
@@ -257,7 +309,7 @@
                 </div>
                 <div class="col-md-4">
                     <div class="card car-card">
-                        <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" class="card-img-top" alt="Jeep Wrangler">
+                        <img src="https://via.placeholder.com/400x200?text=Car+3" class="card-img-top" alt="Car 3">
                         <div class="card-body">
                             <h5 class="card-title">Jeep Wrangler</h5>
                             <p class="card-text">SUV, Off-road, $60/day</p>
@@ -392,7 +444,7 @@
                         </a>
                         <a href="https://twitter.com/rentify" class="text-primary">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-2.717 0-4.92 2.203-4.92 4.917 0 .39.045.765.127 1.124-4.09-.205-7.719-2.165-10.141-5.144-.424.729-.666 1.574-.666 2.475 0 1.708.87 3.215 2.188 4.099-.807-.026-1.566-.248-2.228-.616v.061c0 2.385 1.698 4.374 3.946 4.827-.413.111-.849.171-1.296.171-.314 0-.615-.03-.916-.086 .621 1.938 2.418 3.348 4.548 3.385-1.669 1.307-3.776 2.083-6.061 2.083-.394 0-.787-.023-1.175-.068 2.179 1.397 4.768 2.212 7.548 2.212 9.057 0 14.009-7.502 14.009-14.008 0-.213-.005-.426-.014-.637 .961-.695 1.797-1.562 2.457-2.549z"></path>
+                                <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-2.717 0-4.92 2.203-4.92 4.917 0 .39.045.765.127 1.124-4.09-.205-7.719-2.165-10.141-5.144-.424.729-.666 1.574-.666 2.475 0 1.708.87 3.215 2.188 4.099-.807-.026-1.566-.248-2.228-.616v.061c0 2.385 1.698 4.374 3.946 4.827-.413.111-.849.171-1.296.171-.314 0-.615-.03-.916-.086.621 1.938 2.418 3.348 4.548 3.385-1.669 1.307-3.776 2.083-6.061 2.083-.394 0-.787-.023-1.175-.068 2.179 1.397 4.768 2.212 7.548 2.212 9.057 0 14.009-7.502 14.009-14.008 0-.213-.005-.426-.014-.637.961-.695 1.797-1.562 2.457-2.549z"></path>
                             </svg>
                         </a>
                         <a href="https://instagram.com/rentify" class="text-primary">
