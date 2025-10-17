@@ -254,6 +254,7 @@
                                 echo '<div class="mt-4 flex space-x-2">';
                                 echo '<a href="car_details.php?car_id=' . $row['car_id'] . '" class="bg-teal-600 text-gray-100 p-2 rounded-lg hover:bg-teal-700 transition">View Details</a>';
                                 echo '<a href="book.php?car_id=' . $row['car_id'] . '" class="bg-green-500 text-gray-100 p-2 rounded-lg hover:bg-green-600 transition">Reserve</a>';
+                                echo '<a href="chat.php?car_id=' . $row['car_id'] . '" class="bg-blue-500 text-gray-100 p-2 rounded-lg hover:bg-blue-600 transition">Chat with Owner</a>';
                                 echo '</div>';
                                 echo '</div>';
                             }
@@ -283,6 +284,7 @@
                                 echo '<div class="mt-4 flex space-x-2">';
                                 echo '<a href="car_details.php?car_id=' . $row['car_id'] . '" class="bg-teal-600 text-gray-100 p-2 rounded-lg hover:bg-teal-700 transition">View Details</a>';
                                 echo '<a href="book.php?car_id=' . $row['car_id'] . '" class="bg-green-500 text-gray-100 p-2 rounded-lg hover:bg-green-600 transition">Reserve</a>';
+                                echo '<a href="chat.php?regarding=car&car_id=' . $row['car_id'] . '" class="bg-blue-500 text-gray-100 p-2 rounded-lg hover:bg-blue-600 transition">Chat with Owner</a>';
                                 echo '</div>';
                                 echo '</div>';
                             }

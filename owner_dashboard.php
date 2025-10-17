@@ -1,3 +1,230 @@
+<?php
+include 'auth.php';
+include 'db_connect.php';
+
+// Enable error reporting for debugging
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// Retrieve token from cookie
+$token = $_COOKIE['jwt_token'] ?? '';
+$user = get_user_from_token($token);
+if (!$user || $user['role'] !== 'owner') {
+    echo '<p class="text-red-400">Unauthorized. Please <a href="login.php" class="text-teal-400 hover:underline">log in</a> as an owner.</p>';
+    exit;
+}
+
+// Get owner_id
+$sql_owner = "SELECT owner_id FROM Owners WHERE user_id = ?";
+$stmt_owner = $conn->prepare($sql_owner);
+$stmt_owner->bind_param("i", $user['user_id']);
+$stmt_owner->execute();
+$owner_result = $stmt_owner->get_result();
+if ($owner_result->num_rows === 0) {
+    echo '<p class="text-red-400">Owner profile not found. Please contact support.</p>';
+    exit;
+}
+$owner_id = $owner_result->fetch_assoc()['owner_id'];
+$stmt_owner->close();
+
+// Handle form submissions
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    error_log("Action received: " . ($_POST['action'] ?? 'none'));
+    if (isset($_POST['action'])) {
+        if ($_POST['action'] == 'update' && isset($_POST['car_id'])) {
+            $car_id = $_POST['car_id'];
+            $brand = $_POST['brand'];
+            $model = $_POST['model'];
+            $year = $_POST['year'];
+            $type = $_POST['type'];
+            $capacity = $_POST['capacity'];
+            $fuel_type = $_POST['fuel_type'];
+            $transmission = $_POST['transmission'];
+            $price = $_POST['price'];
+            $status = $_POST['status'];
+            $location = $_POST['location'];
+
+            $image_path = $_POST['existing_image'];
+            if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
+                $max_size = 2 * 1024 * 1024;
+                $file_type = $_FILES['image']['type'];
+                $file_size = $_FILES['image']['size'];
+                $file_tmp = $_FILES['image']['tmp_name'];
+                $file_name = uniqid('car_') . '.' . pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+
+                if (in_array($file_type, $allowed_types) && $file_size <= $max_size) {
+                    $upload_dir = 'Uploads/cars/';
+                    if (!is_dir($upload_dir)) {
+                        mkdir($upload_dir, 0755, true);
+                    }
+                    $destination = $upload_dir . $file_name;
+                    if (move_uploaded_file($file_tmp, $destination)) {
+                        $image_path = $destination;
+                        if ($_POST['existing_image'] != 'Uploads/cars/placeholder.jpg' && file_exists($_POST['existing_image'])) {
+                            unlink($_POST['existing_image']);
+                        }
+                    } else {
+                        echo '<p class="text-red-400">Error uploading image.</p>';
+                    }
+                } else {
+                    echo '<p class="text-red-400">Invalid file type or size. Only JPEG, PNG, or GIF up to 2MB allowed.</p>';
+                }
+            }
+
+            $sql_update = "UPDATE Cars SET brand = ?, model = ?, year = ?, type = ?, capacity = ?, fuel_type = ?, transmission = ?, price = ?, image = ?, status = ?, location = ? WHERE car_id = ? AND owner_id = ?";
+            $stmt_update = $conn->prepare($sql_update);
+            $stmt_update->bind_param("ssisisdssssi", $brand, $model, $year, $type, $capacity, $fuel_type, $transmission, $price, $image_path, $status, $location, $car_id, $owner_id);
+            if ($stmt_update->execute()) {
+                echo '<p class="text-green-400">Car updated successfully!</p>';
+            } else {
+                echo '<p class="text-red-400">Error updating car: ' . $conn->error . '</p>';
+            }
+            $stmt_update->close();
+        } elseif ($_POST['action'] == 'delete' && isset($_POST['car_id'])) {
+            $car_id = $_POST['car_id'];
+            $sql_check = "SELECT booking_id FROM Bookings WHERE car_id = ? AND status = 'confirmed'";
+            $stmt_check = $conn->prepare($sql_check);
+            $stmt_check->bind_param("i", $car_id);
+            $stmt_check->execute();
+            if ($stmt_check->get_result()->num_rows > 0) {
+                echo '<p class="text-red-400">Cannot delete car with active bookings.</p>';
+                $stmt_check->close();
+            } else {
+                $stmt_check->close();
+                $sql_image = "SELECT image FROM Cars WHERE car_id = ? AND owner_id = ?";
+                $stmt_image = $conn->prepare($sql_image);
+                $stmt_image->bind_param("ii", $car_id, $owner_id);
+                $stmt_image->execute();
+                $image_result = $stmt_image->get_result();
+                if ($image_result->num_rows > 0) {
+                    $image_path = $image_result->fetch_assoc()['image'];
+                    if ($image_path != 'Uploads/cars/placeholder.jpg' && file_exists($image_path)) {
+                        unlink($image_path);
+                    }
+                }
+                $stmt_image->close();
+
+                $sql_delete = "DELETE FROM Cars WHERE car_id = ? AND owner_id = ?";
+                $stmt_delete = $conn->prepare($sql_delete);
+                $stmt_delete->bind_param("ii", $car_id, $owner_id);
+                if ($stmt_delete->execute()) {
+                    echo '<p class="text-green-400">Car deleted successfully!</p>';
+                } else {
+                    echo '<p class="text-red-400">Error deleting car: ' . $conn->error . '</p>';
+                }
+                $stmt_delete->close();
+            }
+        } elseif ($_POST['action'] == 'add_promo' && isset($_POST['car_id'], $_POST['promo_code'], $_POST['discount_percentage'], $_POST['start_date'], $_POST['end_date'])) {
+            $car_id = $_POST['car_id'];
+            $promo_code = $_POST['promo_code'];
+            $discount_percentage = $_POST['discount_percentage'];
+            $start_date = $_POST['start_date'];
+            $end_date = $_POST['end_date'];
+
+            $sql_promo = "INSERT INTO Promotions (car_id, promo_code, discount_percentage, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
+            $stmt_promo = $conn->prepare($sql_promo);
+            $stmt_promo->bind_param("isdss", $car_id, $promo_code, $discount_percentage, $start_date, $end_date);
+            if ($stmt_promo->execute()) {
+                echo '<p class="text-green-400">Promo added successfully!</p>';
+            } else {
+                echo '<p class="text-red-400">Error adding promo: ' . $conn->error . '</p>';
+            }
+            $stmt_promo->close();
+        } elseif ($_POST['action'] == 'batch_update' && isset($_POST['car_ids'], $_POST['batch_status'])) {
+            $car_ids = $_POST['car_ids'] ?? [];
+            $status = $_POST['batch_status'];
+            foreach ($car_ids as $car_id) {
+                $sql_check = "SELECT booking_id FROM Bookings WHERE car_id = ? AND status = 'confirmed'";
+                $stmt_check = $conn->prepare($sql_check);
+                $stmt_check->bind_param("i", $car_id);
+                $stmt_check->execute();
+                if ($stmt_check->get_result()->num_rows == 0) {
+                    $sql_batch = "UPDATE Cars SET status = ? WHERE car_id = ? AND owner_id = ?";
+                    $stmt_batch = $conn->prepare($sql_batch);
+                    $stmt_batch->bind_param("sii", $status, $car_id, $owner_id);
+                    $stmt_batch->execute();
+                    $stmt_batch->close();
+                }
+                $stmt_check->close();
+            }
+            echo '<p class="text-green-400">Batch update successful!</p>';
+        } elseif ($_POST['action'] == 'respond_review' && isset($_POST['review_id'], $_POST['response'])) {
+            $review_id = $_POST['review_id'];
+            $response = $_POST['response'];
+            $sql_response = "UPDATE Reviews SET response = ? WHERE review_id = ? AND car_id IN (SELECT car_id FROM Cars WHERE owner_id = ?)";
+            $stmt_response = $conn->prepare($sql_response);
+            $stmt_response->bind_param("sii", $response, $review_id, $owner_id);
+            if ($stmt_response->execute()) {
+                echo '<p class="text-green-400">Review response submitted!</p>';
+            } else {
+                echo '<p class="text-red-400">Error submitting response: ' . $conn->error . '</p>';
+            }
+            $stmt_response->close();
+        } else {
+            echo '<p class="text-red-400">Invalid action or missing required fields.</p>';
+        }
+    }
+}
+
+// Fetch car data for editing
+$edit_car = null;
+if (isset($_GET['edit_car_id'])) {
+    error_log("Edit car ID requested: " . $_GET['edit_car_id']);
+    $edit_car_id = $_GET['edit_car_id'];
+    $sql_edit = "SELECT * FROM Cars WHERE car_id = ? AND owner_id = ?";
+    $stmt_edit = $conn->prepare($sql_edit);
+    $stmt_edit->bind_param("ii", $edit_car_id, $owner_id);
+    $stmt_edit->execute();
+    $edit_result = $stmt_edit->get_result();
+    if ($edit_result->num_rows > 0) {
+        $edit_car = $edit_result->fetch_assoc();
+    } else {
+        echo '<p class="text-red-400">Error: Car not found or you do not own this car.</p>';
+    }
+    $stmt_edit->close();
+}
+
+// Overview Panel
+$sql_total_cars = "SELECT COUNT(*) as total FROM Cars WHERE owner_id = ?";
+$stmt_total_cars = $conn->prepare($sql_total_cars);
+$stmt_total_cars->bind_param("i", $owner_id);
+$stmt_total_cars->execute();
+$total_cars = $stmt_total_cars->get_result()->fetch_assoc()['total'];
+$stmt_total_cars->close();
+
+$month_start = date('Y-m-01');
+$month_end = date('Y-m-t');
+$sql_earnings = "SELECT SUM(total_amount) as earnings FROM Bookings WHERE car_id IN (SELECT car_id FROM Cars WHERE owner_id = ?) AND status = 'completed' AND payment_status = 'completed' AND start_date BETWEEN ? AND ?";
+$stmt_earnings = $conn->prepare($sql_earnings);
+$stmt_earnings->bind_param("iss", $owner_id, $month_start, $month_end);
+$stmt_earnings->execute();
+$earnings = $stmt_earnings->get_result()->fetch_assoc()['earnings'] ?? 0;
+$stmt_earnings->close();
+
+$sql_upcoming = "SELECT COUNT(*) as upcoming FROM Bookings WHERE car_id IN (SELECT car_id FROM Cars WHERE owner_id = ?) AND status = 'confirmed' AND start_date >= CURDATE()";
+$stmt_upcoming = $conn->prepare($sql_upcoming);
+$stmt_upcoming->bind_param("i", $owner_id);
+$stmt_upcoming->execute();
+$upcoming_bookings = $stmt_upcoming->get_result()->fetch_assoc()['upcoming'];
+$stmt_upcoming->close();
+
+$sql_occupancy = "SELECT (SUM(DATEDIFF(LEAST(end_date, ?), GREATEST(start_date, ?))) / (COUNT(*) * DATEDIFF(?, ?))) * 100 as rate FROM Bookings b JOIN Cars c ON b.car_id = c.car_id WHERE c.owner_id = ? AND b.status IN ('confirmed', 'completed')";
+$stmt_occupancy = $conn->prepare($sql_occupancy);
+$stmt_occupancy->bind_param("ssssi", $month_end, $month_start, $month_end, $month_start, $owner_id);
+$stmt_occupancy->execute();
+$occupancy_rate = $stmt_occupancy->get_result()->fetch_assoc()['rate'] ?? 0;
+$stmt_occupancy->close();
+
+$sql_available = "SELECT COUNT(*) as available FROM Cars WHERE owner_id = ? AND status = 'available'";
+$stmt_available = $conn->prepare($sql_available);
+$stmt_available->bind_param("i", $owner_id);
+$stmt_available->execute();
+$vehicles_available = $stmt_available->get_result()->fetch_assoc()['available'];
+$stmt_available->close();
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,238 +241,15 @@
                 <a href="owner_cars.php" class="hover:underline">My Cars</a>
                 <a href="add_car.php" class="hover:underline">Add Car</a>
                 <a href="bookings.php" class="hover:underline">Bookings</a>
+                <a href="owner_dashboard.php#messages" class="hover:underline">Messages</a>
                 <a href="logout.php" class="hover:underline">Log Out</a>
             </div>
         </nav>
     </header>
     <main class="container mx-auto px-4 py-8">
         <h2 class="text-3xl font-bold mb-6">Owner Dashboard</h2>
-        <?php
-        include 'auth.php';
-        include 'db_connect.php';
 
-        // Enable error reporting for debugging
-        ini_set('display_errors', 1);
-        ini_set('display_startup_errors', 1);
-        error_reporting(E_ALL);
-
-        // Retrieve token from cookie
-        $token = $_COOKIE['jwt_token'] ?? '';
-        $user = get_user_from_token($token);
-        if (!$user || $user['role'] !== 'owner') {
-            echo '<p class="text-red-400">Unauthorized. Please <a href="login.php" class="text-teal-400 hover:underline">log in</a> as an owner.</p>';
-            exit;
-        }
-
-        // Get owner_id
-        $sql_owner = "SELECT owner_id FROM Owners WHERE user_id = ?";
-        $stmt_owner = $conn->prepare($sql_owner);
-        $stmt_owner->bind_param("i", $user['user_id']);
-        $stmt_owner->execute();
-        $owner_result = $stmt_owner->get_result();
-        if ($owner_result->num_rows === 0) {
-            echo '<p class="text-red-400">Owner profile not found. Please contact support.</p>';
-            exit;
-        }
-        $owner_id = $owner_result->fetch_assoc()['owner_id'];
-        $stmt_owner->close();
-
-        // Handle form submissions
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            error_log("Action received: " . ($_POST['action'] ?? 'none'));
-            if (isset($_POST['action'])) {
-                if ($_POST['action'] == 'update' && isset($_POST['car_id'])) {
-                    $car_id = $_POST['car_id'];
-                    $brand = $_POST['brand'];
-                    $model = $_POST['model'];
-                    $year = $_POST['year'];
-                    $type = $_POST['type'];
-                    $capacity = $_POST['capacity'];
-                    $fuel_type = $_POST['fuel_type'];
-                    $transmission = $_POST['transmission'];
-                    $price = $_POST['price'];
-                    $status = $_POST['status'];
-                    $location = $_POST['location'];
-
-                    $image_path = $_POST['existing_image'];
-                    if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-                        $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
-                        $max_size = 2 * 1024 * 1024;
-                        $file_type = $_FILES['image']['type'];
-                        $file_size = $_FILES['image']['size'];
-                        $file_tmp = $_FILES['image']['tmp_name'];
-                        $file_name = uniqid('car_') . '.' . pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-
-                        if (in_array($file_type, $allowed_types) && $file_size <= $max_size) {
-                            $upload_dir = 'Uploads/cars/';
-                            if (!is_dir($upload_dir)) {
-                                mkdir($upload_dir, 0755, true);
-                            }
-                            $destination = $upload_dir . $file_name;
-                            if (move_uploaded_file($file_tmp, $destination)) {
-                                $image_path = $destination;
-                                if ($_POST['existing_image'] != 'Uploads/cars/placeholder.jpg' && file_exists($_POST['existing_image'])) {
-                                    unlink($_POST['existing_image']);
-                                }
-                            } else {
-                                echo '<p class="text-red-400">Error uploading image.</p>';
-                            }
-                        } else {
-                            echo '<p class="text-red-400">Invalid file type or size. Only JPEG, PNG, or GIF up to 2MB allowed.</p>';
-                        }
-                    }
-
-                    $sql_update = "UPDATE Cars SET brand = ?, model = ?, year = ?, type = ?, capacity = ?, fuel_type = ?, transmission = ?, price = ?, image = ?, status = ?, location = ? WHERE car_id = ? AND owner_id = ?";
-                    $stmt_update = $conn->prepare($sql_update);
-                    $stmt_update->bind_param("ssisisdssssi", $brand, $model, $year, $type, $capacity, $fuel_type, $transmission, $price, $image_path, $status, $location, $car_id, $owner_id);
-                    if ($stmt_update->execute()) {
-                        echo '<p class="text-green-400">Car updated successfully!</p>';
-                    } else {
-                        echo '<p class="text-red-400">Error updating car: ' . $conn->error . '</p>';
-                    }
-                    $stmt_update->close();
-                } elseif ($_POST['action'] == 'delete' && isset($_POST['car_id'])) {
-                    $car_id = $_POST['car_id'];
-                    $sql_check = "SELECT booking_id FROM Bookings WHERE car_id = ? AND status = 'confirmed'";
-                    $stmt_check = $conn->prepare($sql_check);
-                    $stmt_check->bind_param("i", $car_id);
-                    $stmt_check->execute();
-                    if ($stmt_check->get_result()->num_rows > 0) {
-                        echo '<p class="text-red-400">Cannot delete car with active bookings.</p>';
-                        $stmt_check->close();
-                    } else {
-                        $stmt_check->close();
-                        $sql_image = "SELECT image FROM Cars WHERE car_id = ? AND owner_id = ?";
-                        $stmt_image = $conn->prepare($sql_image);
-                        $stmt_image->bind_param("ii", $car_id, $owner_id);
-                        $stmt_image->execute();
-                        $image_result = $stmt_image->get_result();
-                        if ($image_result->num_rows > 0) {
-                            $image_path = $image_result->fetch_assoc()['image'];
-                            if ($image_path != 'Uploads/cars/placeholder.jpg' && file_exists($image_path)) {
-                                unlink($image_path);
-                            }
-                        }
-                        $stmt_image->close();
-
-                        $sql_delete = "DELETE FROM Cars WHERE car_id = ? AND owner_id = ?";
-                        $stmt_delete = $conn->prepare($sql_delete);
-                        $stmt_delete->bind_param("ii", $car_id, $owner_id);
-                        if ($stmt_delete->execute()) {
-                            echo '<p class="text-green-400">Car deleted successfully!</p>';
-                        } else {
-                            echo '<p class="text-red-400">Error deleting car: ' . $conn->error . '</p>';
-                        }
-                        $stmt_delete->close();
-                    }
-                } elseif ($_POST['action'] == 'add_promo' && isset($_POST['car_id'], $_POST['promo_code'], $_POST['discount_percentage'], $_POST['start_date'], $_POST['end_date'])) {
-                    $car_id = $_POST['car_id'];
-                    $promo_code = $_POST['promo_code'];
-                    $discount_percentage = $_POST['discount_percentage'];
-                    $start_date = $_POST['start_date'];
-                    $end_date = $_POST['end_date'];
-
-                    $sql_promo = "INSERT INTO Promotions (car_id, promo_code, discount_percentage, start_date, end_date) VALUES (?, ?, ?, ?, ?)";
-                    $stmt_promo = $conn->prepare($sql_promo);
-                    $stmt_promo->bind_param("isdss", $car_id, $promo_code, $discount_percentage, $start_date, $end_date);
-                    if ($stmt_promo->execute()) {
-                        echo '<p class="text-green-400">Promo added successfully!</p>';
-                    } else {
-                        echo '<p class="text-red-400">Error adding promo: ' . $conn->error . '</p>';
-                    }
-                    $stmt_promo->close();
-                } elseif ($_POST['action'] == 'batch_update' && isset($_POST['car_ids'], $_POST['batch_status'])) {
-                    $car_ids = $_POST['car_ids'] ?? [];
-                    $status = $_POST['batch_status'];
-                    foreach ($car_ids as $car_id) {
-                        $sql_check = "SELECT booking_id FROM Bookings WHERE car_id = ? AND status = 'confirmed'";
-                        $stmt_check = $conn->prepare($sql_check);
-                        $stmt_check->bind_param("i", $car_id);
-                        $stmt_check->execute();
-                        if ($stmt_check->get_result()->num_rows == 0) {
-                            $sql_batch = "UPDATE Cars SET status = ? WHERE car_id = ? AND owner_id = ?";
-                            $stmt_batch = $conn->prepare($sql_batch);
-                            $stmt_batch->bind_param("sii", $status, $car_id, $owner_id);
-                            $stmt_batch->execute();
-                            $stmt_batch->close();
-                        }
-                        $stmt_check->close();
-                    }
-                    echo '<p class="text-green-400">Batch update successful!</p>';
-                } elseif ($_POST['action'] == 'respond_review' && isset($_POST['review_id'], $_POST['response'])) {
-                    $review_id = $_POST['review_id'];
-                    $response = $_POST['response'];
-                    $sql_response = "UPDATE Reviews SET response = ? WHERE review_id = ? AND car_id IN (SELECT car_id FROM Cars WHERE owner_id = ?)";
-                    $stmt_response = $conn->prepare($sql_response);
-                    $stmt_response->bind_param("sii", $response, $review_id, $owner_id);
-                    if ($stmt_response->execute()) {
-                        echo '<p class="text-green-400">Review response submitted!</p>';
-                    } else {
-                        echo '<p class="text-red-400">Error submitting response: ' . $conn->error . '</p>';
-                    }
-                    $stmt_response->close();
-                } else {
-                    echo '<p class="text-red-400">Invalid action or missing required fields.</p>';
-                }
-            }
-        }
-
-        // Fetch car data for editing
-        $edit_car = null;
-        if (isset($_GET['edit_car_id'])) {
-            error_log("Edit car ID requested: " . $_GET['edit_car_id']);
-            $edit_car_id = $_GET['edit_car_id'];
-            $sql_edit = "SELECT * FROM Cars WHERE car_id = ? AND owner_id = ?";
-            $stmt_edit = $conn->prepare($sql_edit);
-            $stmt_edit->bind_param("ii", $edit_car_id, $owner_id);
-            $stmt_edit->execute();
-            $edit_result = $stmt_edit->get_result();
-            if ($edit_result->num_rows > 0) {
-                $edit_car = $edit_result->fetch_assoc();
-            } else {
-                echo '<p class="text-red-400">Error: Car not found or you do not own this car.</p>';
-            }
-            $stmt_edit->close();
-        }
-
-        // Overview Panel
-        $sql_total_cars = "SELECT COUNT(*) as total FROM Cars WHERE owner_id = ?";
-        $stmt_total_cars = $conn->prepare($sql_total_cars);
-        $stmt_total_cars->bind_param("i", $owner_id);
-        $stmt_total_cars->execute();
-        $total_cars = $stmt_total_cars->get_result()->fetch_assoc()['total'];
-        $stmt_total_cars->close();
-
-        $month_start = date('Y-m-01');
-        $month_end = date('Y-m-t');
-        $sql_earnings = "SELECT SUM(total_amount) as earnings FROM Bookings WHERE car_id IN (SELECT car_id FROM Cars WHERE owner_id = ?) AND status = 'completed' AND payment_status = 'completed' AND start_date BETWEEN ? AND ?";
-        $stmt_earnings = $conn->prepare($sql_earnings);
-        $stmt_earnings->bind_param("iss", $owner_id, $month_start, $month_end);
-        $stmt_earnings->execute();
-        $earnings = $stmt_earnings->get_result()->fetch_assoc()['earnings'] ?? 0;
-        $stmt_earnings->close();
-
-        $sql_upcoming = "SELECT COUNT(*) as upcoming FROM Bookings WHERE car_id IN (SELECT car_id FROM Cars WHERE owner_id = ?) AND status = 'confirmed' AND start_date >= CURDATE()";
-        $stmt_upcoming = $conn->prepare($sql_upcoming);
-        $stmt_upcoming->bind_param("i", $owner_id);
-        $stmt_upcoming->execute();
-        $upcoming_bookings = $stmt_upcoming->get_result()->fetch_assoc()['upcoming'];
-        $stmt_upcoming->close();
-
-        $sql_occupancy = "SELECT (SUM(DATEDIFF(LEAST(end_date, ?), GREATEST(start_date, ?))) / (COUNT(*) * DATEDIFF(?, ?))) * 100 as rate FROM Bookings b JOIN Cars c ON b.car_id = c.car_id WHERE c.owner_id = ? AND b.status IN ('confirmed', 'completed')";
-        $stmt_occupancy = $conn->prepare($sql_occupancy);
-        $stmt_occupancy->bind_param("ssssi", $month_end, $month_start, $month_end, $month_start, $owner_id);
-        $stmt_occupancy->execute();
-        $occupancy_rate = $stmt_occupancy->get_result()->fetch_assoc()['rate'] ?? 0;
-        $stmt_occupancy->close();
-
-        $sql_available = "SELECT COUNT(*) as available FROM Cars WHERE owner_id = ? AND status = 'available'";
-        $stmt_available = $conn->prepare($sql_available);
-        $stmt_available->bind_param("i", $owner_id);
-        $stmt_available->execute();
-        $vehicles_available = $stmt_available->get_result()->fetch_assoc()['available'];
-        $stmt_available->close();
-        ?>
+        <!-- Overview Panel -->
         <div class="mb-8">
             <h3 class="text-xl font-semibold mb-4">Overview</h3>
             <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -439,6 +443,75 @@
                         ?>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Messages Section -->
+        <div class="mb-8" id="messages">
+            <h3 class="text-xl font-semibold mb-4">Messages</h3>
+            <?php
+            // Fetch messages for the owner's cars
+            $sql_messages = "
+                SELECT m.message_id, m.car_id, m.sender_id, m.receiver_id, m.message_text, m.sent_at, m.is_read,
+                       c.brand, c.model, u.name as sender_name
+                FROM Messages m
+                JOIN Cars c ON m.car_id = c.car_id
+                JOIN Users u ON m.sender_id = u.user_id
+                WHERE c.owner_id = ? AND m.receiver_id = ?
+                ORDER BY m.sent_at DESC";
+            $stmt_messages = $conn->prepare($sql_messages);
+            $stmt_messages->bind_param("ii", $owner_id, $user['user_id']);
+            $stmt_messages->execute();
+            $result_messages = $stmt_messages->get_result();
+
+            // Group messages by car_id and sender_id
+            $conversations = [];
+            while ($row = $result_messages->fetch_assoc()) {
+                $conversation_key = $row['car_id'] . '-' . $row['sender_id'];
+                if (!isset($conversations[$conversation_key])) {
+                    $conversations[$conversation_key] = [
+                        'car_id' => $row['car_id'],
+                        'brand' => $row['brand'],
+                        'model' => $row['model'],
+                        'sender_id' => $row['sender_id'],
+                        'sender_name' => $row['sender_name'],
+                        'messages' => [],
+                        'unread_count' => 0,
+                    ];
+                }
+                $conversations[$conversation_key]['messages'][] = $row;
+                if (!$row['is_read'] && $row['sender_id'] != $user['user_id']) {
+                    $conversations[$conversation_key]['unread_count']++;
+                }
+            }
+            $stmt_messages->close();
+            ?>
+            <div class="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
+                <?php if (empty($conversations)): ?>
+                    <p class="text-gray-300">No messages yet.</p>
+                <?php else: ?>
+                    <div class="space-y-4">
+                        <?php foreach ($conversations as $conv): ?>
+                            <div class="border-b border-gray-700 pb-4">
+                                <div class="flex justify-between items-center">
+                                    <h4 class="text-lg font-semibold">
+                                        <?php echo htmlspecialchars($conv['brand'] . ' ' . $conv['model']); ?> - 
+                                        <?php echo htmlspecialchars($conv['sender_name']); ?>
+                                        <?php if ($conv['unread_count'] > 0): ?>
+                                            <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                                                <?php echo $conv['unread_count']; ?> Unread
+                                            </span>
+                                        <?php endif; ?>
+                                    </h4>
+                                    <a href="chat.php?car_id=<?php echo $conv['car_id']; ?>&sender_id=<?php echo $conv['sender_id']; ?>" 
+                                       class="bg-blue-500 text-gray-100 px-4 py-2 rounded-lg hover:bg-blue-600 transition">
+                                        View Conversation
+                                    </a>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 
