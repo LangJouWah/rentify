@@ -304,6 +304,18 @@ $stmt_available->bind_param("i", $owner_id);
 $stmt_available->execute();
 $vehicles_available = $stmt_available->get_result()->fetch_assoc()['available'];
 $stmt_available->close();
+
+// Get unread message count for badge
+$unread_count_sql = "SELECT COUNT(*) as unread_count 
+                    FROM messages m
+                    JOIN cars c ON m.car_id = c.car_id
+                    WHERE c.owner_id = ? AND m.receiver_id = ? AND m.is_read = 0";
+$stmt_unread = $conn->prepare($unread_count_sql);
+$stmt_unread->bind_param("ii", $owner_id, $user['user_id']);
+$stmt_unread->execute();
+$unread_result = $stmt_unread->get_result();
+$unread_count = $unread_result->fetch_assoc()['unread_count'] ?? 0;
+$stmt_unread->close();
 ?>
 
 <!DOCTYPE html>
@@ -317,18 +329,54 @@ $stmt_available->close();
 </head>
 
 <body class="bg-gray-800 font-sans text-gray-100">
-    <header class="bg-teal-600 text-gray-100">
-        <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold">Rentify</h1>
-            <div class="space-x-4">
-                <a href="owner_cars.php" class="hover:underline">My Cars</a>
-                <a href="add_car.php" class="hover:underline">Add Car</a>
-                <a href="bookings.php" class="hover:underline">Bookings</a>
-                <a href="owner_dashboard.php#messages" class="hover:underline">Messages</a>
-                <a href="logout.php" class="hover:underline">Log Out</a>
+    <header class="bg-teal-600 text-gray-100 sticky top-0 z-50">
+    <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
+        <h1 class="text-2xl font-bold">Rentify</h1>
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-4">
+                <!-- Dashboard Dropdown -->
+                <div class="relative">
+                    <button onclick="toggleDashboardDropdown()" class="flex items-center space-x-2 p-2 text-gray-100 hover:bg-teal-700 rounded-lg transition">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                        </svg>
+                        <span>Dashboard</span>
+                        
+                    </button>
+                    
+                </div>
+
+                <!-- Messages Icon -->
+                <a href="owner_messages.php" class="relative p-2 text-gray-100 hover:bg-teal-700 rounded-lg transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                    </svg>
+                    <?php if ($unread_count > 0): ?>
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                            <?php echo $unread_count; ?>
+                        </span>
+                    <?php endif; ?>
+                </a>
+                
+                <!-- Profile Dropdown -->
+                <div class="relative">
+                    <button onclick="toggleProfileDropdown()" class="flex items-center space-x-2">
+                        <span class="text-gray-100"><?php echo htmlspecialchars($user['name'] ?? 'User'); ?></span>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-48 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-50">
+                        <a href="profile.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Account Settings</a>
+                        <a href="owner_messages.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Messages</a>
+                        <a href="owner_cars.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">My Cars</a>
+                        <a href="add_car.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Add Car</a>
+                        <a href="bookings.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Bookings</a>
+                        <a href="logout.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Log Out</a>
+                    </div>
+                </div>
             </div>
-        </nav>
-    </header>
+        </div>
+    </nav>
+</header>
     <main class="container mx-auto px-4 py-8">
         <h2 class="text-3xl font-bold mb-6">Owner Dashboard</h2>
 
@@ -580,87 +628,7 @@ $stmt_available->close();
             </div>
         </div>
 
-        <!-- Messages Section -->
-        <div class="mb-8" id="messages">
-            <h3 class="text-xl font-semibold mb-4">Messages</h3>
-            <?php
-            // Fetch messages for the owner's cars
-            // Changed `sent_at` to `created_at` to match common database conventions
-            $sql_messages = "
-                SELECT m.message_id, m.car_id, m.sender_id, m.receiver_id, m.message AS message_text, m.created_at, m.is_read,
-                       c.brand, c.model, u.name AS sender_name
-                FROM Messages m
-                JOIN Cars c ON m.car_id = c.car_id
-                JOIN Users u ON m.sender_id = u.user_id
-                WHERE c.owner_id = ? AND m.receiver_id = ?
-                ORDER BY m.created_at DESC";
-            $stmt_messages = $conn->prepare($sql_messages);
-            if ($stmt_messages === false) {
-                error_log("Messages query preparation failed: " . $conn->error);
-                echo '<p class="text-red-400">Error preparing messages query: ' . htmlspecialchars($conn->error) . '</p>';
-            } else {
-                $stmt_messages->bind_param("ii", $owner_id, $user['user_id']);
-                if ($stmt_messages->execute()) {
-                    $result_messages = $stmt_messages->get_result();
-
-                    // Group messages by car_id and sender_id
-                    $conversations = [];
-                    while ($row = $result_messages->fetch_assoc()) {
-                        $conversation_key = $row['car_id'] . '-' . $row['sender_id'];
-                        if (!isset($conversations[$conversation_key])) {
-                            $conversations[$conversation_key] = [
-                                'car_id' => $row['car_id'],
-                                'brand' => $row['brand'],
-                                'model' => $row['model'],
-                                'sender_id' => $row['sender_id'],
-                                'sender_name' => $row['sender_name'],
-                                'messages' => [],
-                                'unread_count' => 0,
-                            ];
-                        }
-                        $conversations[$conversation_key]['messages'][] = $row;
-                        if (!$row['is_read'] && $row['sender_id'] != $user['user_id']) {
-                            $conversations[$conversation_key]['unread_count']++;
-                        }
-                    }
-                    $stmt_messages->close();
-                    ?>
-                    <div class="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
-                        <?php if (empty($conversations)): ?>
-                            <p class="text-gray-300">No messages yet.</p>
-                        <?php else: ?>
-                            <div class="space-y-4">
-                                <?php foreach ($conversations as $conv): ?>
-                                    <div class="border-b border-gray-700 pb-4">
-                                        <div class="flex justify-between items-center">
-                                            <h4 class="text-lg font-semibold">
-                                                <?php echo htmlspecialchars($conv['brand'] . ' ' . $conv['model']); ?> -
-                                                <?php echo htmlspecialchars($conv['sender_name']); ?>
-                                                <?php if ($conv['unread_count'] > 0): ?>
-                                                    <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                                                        <?php echo $conv['unread_count']; ?> Unread
-                                                    </span>
-                                                <?php endif; ?>
-                                            </h4>
-                                            <a href="chat.php?car_id=<?php echo $conv['car_id']; ?>&customer_id=<?php echo $conv['sender_id']; ?>"
-                                                class="bg-blue-500 text-gray-100 px-4 py-2 rounded-lg hover:bg-blue-600 transition">
-                                                View Conversation
-                                            </a>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                    <?php
-                } else {
-                    error_log("Messages query execution failed: " . $stmt_messages->error);
-                    echo '<p class="text-red-400">Error executing messages query: ' . htmlspecialchars($stmt_messages->error) . '</p>';
-                    $stmt_messages->close();
-                }
-            }
-            ?>
-        </div>
+        
 
         <!-- Earnings & Payments -->
         <div class="mb-8">
@@ -1032,6 +1000,31 @@ $stmt_available->close();
             <a href="https://rentify.com/privacy" class="text-gray-400 hover:text-gray-200 mx-2">Privacy Policy</a>
         </div>
     </footer>
+    <script>
+    function toggleProfileDropdown() {
+        document.getElementById('profileDropdown').classList.toggle('hidden');
+    }
+    
+    function toggleDashboardDropdown() {
+        window.location.href = 'owner_dashboard.php';
+    }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(event) {
+        const dashboardDropdown = document.getElementById('dashboardDropdown');
+        const profileDropdown = document.getElementById('profileDropdown');
+        const dashboardButton = document.querySelector('button[onclick="toggleDashboardDropdown()"]');
+        const profileButton = document.querySelector('button[onclick="toggleProfileDropdown()"]');
+        
+        if (dashboardDropdown && !dashboardButton.contains(event.target) && !dashboardDropdown.contains(event.target)) {
+            dashboardDropdown.classList.add('hidden');
+        }
+        
+        if (profileDropdown && !profileButton.contains(event.target) && !profileDropdown.contains(event.target)) {
+            profileDropdown.classList.add('hidden');
+        }
+    });
+</script>
 </body>
 
 </html>
