@@ -39,6 +39,7 @@ if (!$car) {
 }
 $stmt->close();
 
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $start_date = $_POST['start_date'] ?? '';
@@ -69,29 +70,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             // Calculate total price
             $days = (strtotime($end_date) - strtotime($start_date)) / 86400;
-            $total_price = $car['price'] * $days;
+            $total_amount = $car['price'] * $days;
 
             // Insert booking
-            $sql_booking = "INSERT INTO Bookings (user_id, car_id, start_date, end_date, total_price, status) VALUES (?, ?, ?, ?, ?, 'confirmed')";
+            $sql_booking = "INSERT INTO Bookings (user_id, car_id, start_date, end_date, total_amount, status) VALUES (?, ?, ?, ?, ?, 'confirmed')";
             $stmt_booking = $conn->prepare($sql_booking);
-            $stmt_booking->bind_param('iissds', $user['id'], $car_id, $start_date, $end_date, $total_price, $status);
-            if ($stmt_booking->execute()) {
-                $booking_id = $stmt_booking->insert_id;
-
-                // Update car status
-                $sql_update = "UPDATE Cars SET status = 'booked' WHERE car_id = ?";
-                $stmt_update = $conn->prepare($sql_update);
-                $stmt_update->bind_param('i', $car_id);
-                $stmt_update->execute();
-                $stmt_update->close();
-
-                $_SESSION['success'] = "Booking successful! <a href='pay.php?booking_id=$booking_id' class='text-teal-400 hover:underline'>Proceed to Payment</a>";
-                header('Location: dashboard.php');
-                exit;
+            if ($stmt_booking === false) {
+                $_SESSION['error'] = 'Database error: ' . $conn->error;
             } else {
-                $_SESSION['error'] = 'Error creating booking: ' . $stmt_booking->error;
+                $stmt_booking->bind_param('iissd', $user['user_id'], $car_id, $start_date, $end_date, $total_amount);
+                if ($stmt_booking->execute()) {
+                    $booking_id = $stmt_booking->insert_id;
+
+                    // Update car status
+                    $sql_update = "UPDATE Cars SET status = 'rented' WHERE car_id = ?";
+                    $stmt_update = $conn->prepare($sql_update);
+                    $stmt_update->bind_param('i', $car_id);
+                    $stmt_update->execute();
+                    $stmt_update->close();
+
+                    // Redirect directly to payment
+                    header('Location: pay.php?booking_id=' . $booking_id);
+                    exit;
+                } else {
+                    $_SESSION['error'] = 'Error creating booking: ' . $stmt_booking->error;
+                }
+                $stmt_booking->close();
             }
-            $stmt_booking->close();
         }
         $stmt_check->close();
     }
@@ -145,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (isset($_SESSION['success'])) {
             echo '<div class="bg-green-900 border border-green-700 text-green-400 px-4 py-3 rounded relative mb-4" role="alert">';
-            echo htmlspecialchars($_SESSION['success']);
+            echo $_SESSION['success']; // Don't use htmlspecialchars here since it contains HTML
             echo '<button type="button" class="absolute top-0 right-0 px-4 py-3 text-green-400" onclick="this.parentElement.remove()">X</button>';
             echo '</div>';
             unset($_SESSION['success']);
