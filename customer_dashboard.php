@@ -9,6 +9,17 @@
         function toggleProfileDropdown() {
             document.getElementById('profileDropdown').classList.toggle('hidden');
         }
+        
+        // Function to show notification badge for unread messages
+        function updateMessageBadge(count) {
+            const badge = document.getElementById('messageBadge');
+            if (count > 0) {
+                badge.classList.remove('hidden');
+                badge.textContent = count;
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
     </script>
 </head>
 <body class="bg-gray-800 font-sans text-gray-100">
@@ -20,16 +31,51 @@
                     <input type="text" name="search" placeholder="Search by brand, model, or type" value="<?php echo htmlspecialchars($_GET['search'] ?? ''); ?>" class="p-2 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600 w-64">
                     <button type="submit" class="bg-teal-600 text-gray-100 p-2 rounded-lg hover:bg-teal-700 transition ml-2">Search</button>
                 </form>
-                <div class="relative">
-                    <button onclick="toggleProfileDropdown()" class="flex items-center space-x-2">
-                        <span class="text-gray-100"><?php echo htmlspecialchars($user['name'] ?? 'User'); ?></span>
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
-                    <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-48 bg-gray-900 border border-gray-700 rounded-lg shadow-lg">
-                        <a href="profile.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Account Settings</a>
-                        <a href="booking_history.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Booking History</a>
-                        <a href="wishlist.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Wishlist</a>
-                        <a href="logout.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Log Out</a>
+                <div class="flex items-center space-x-4">
+                    <!-- Messages Link with Badge -->
+                    <a href="messages.php" class="relative p-2 text-gray-100 hover:bg-teal-700 rounded-lg transition">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                        </svg>
+                        <?php
+                        // Get unread message count for customer
+                        $unread_count = 0;
+                        if (isset($user['user_id'])) {
+                            $unread_sql = "SELECT COUNT(*) as unread_count 
+                                          FROM messages m 
+                                          JOIN conversations c ON m.conversation_id = c.conversation_id 
+                                          WHERE c.customer_id = ? AND m.receiver_id = ? AND m.is_read = 0";
+                            $stmt_unread = $conn->prepare($unread_sql);
+                            $stmt_unread->bind_param("ii", $user['user_id'], $user['user_id']);
+                            $stmt_unread->execute();
+                            $unread_result = $stmt_unread->get_result();
+                            if ($unread_result) {
+                                $unread_data = $unread_result->fetch_assoc();
+                                $unread_count = $unread_data['unread_count'] ?? 0;
+                            }
+                            $stmt_unread->close();
+                        }
+                        ?>
+                        <?php if ($unread_count > 0): ?>
+                            <span id="messageBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                                <?php echo $unread_count; ?>
+                            </span>
+                        <?php else: ?>
+                            <span id="messageBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"></span>
+                        <?php endif; ?>
+                    </a>
+                    
+                    <div class="relative">
+                        <button onclick="toggleProfileDropdown()" class="flex items-center space-x-2">
+                            <span class="text-gray-100"><?php echo htmlspecialchars($user['name'] ?? 'User'); ?></span>
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-48 bg-gray-900 border border-gray-700 rounded-lg shadow-lg">
+                            <a href="profile.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Account Settings</a>
+                            <a href="messages.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Messages</a>
+                            <a href="booking_history.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Booking History</a>
+                            <a href="logout.php" class="block px-4 py-2 text-gray-100 hover:bg-teal-600">Log Out</a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -156,6 +202,51 @@
             $result_promos = $stmt_promos->get_result();
         }
         ?>
+        
+        <!-- Quick Stats Section -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-gray-900 p-6 rounded-lg border border-gray-700 text-center">
+                <div class="text-2xl font-bold text-teal-400">
+                    <?php 
+                    $total_cars_sql = "SELECT COUNT(*) as total FROM cars WHERE status = 'available'";
+                    $result = $conn->query($total_cars_sql);
+                    echo $result->fetch_assoc()['total'] ?? 0;
+                    ?>
+                </div>
+                <div class="text-gray-400">Available Cars</div>
+            </div>
+            <div class="bg-gray-900 p-6 rounded-lg border border-gray-700 text-center">
+                <div class="text-2xl font-bold text-blue-400"><?php echo $unread_count; ?></div>
+                <div class="text-gray-400">Unread Messages</div>
+            </div>
+            <div class="bg-gray-900 p-6 rounded-lg border border-gray-700 text-center">
+                <?php
+                $active_bookings_sql = "SELECT COUNT(*) as active FROM bookings WHERE user_id = ? AND status = 'confirmed'";
+                $stmt_active = $conn->prepare($active_bookings_sql);
+                $stmt_active->bind_param("i", $user['user_id']);
+                $stmt_active->execute();
+                $active_result = $stmt_active->get_result();
+                $active_bookings = $active_result->fetch_assoc()['active'] ?? 0;
+                $stmt_active->close();
+                ?>
+                <div class="text-2xl font-bold text-green-400"><?php echo $active_bookings; ?></div>
+                <div class="text-gray-400">Active Bookings</div>
+            </div>
+            <div class="bg-gray-900 p-6 rounded-lg border border-gray-700 text-center">
+                <?php
+                $total_bookings_sql = "SELECT COUNT(*) as total FROM bookings WHERE user_id = ?";
+                $stmt_total = $conn->prepare($total_bookings_sql);
+                $stmt_total->bind_param("i", $user['user_id']);
+                $stmt_total->execute();
+                $total_result = $stmt_total->get_result();
+                $total_bookings = $total_result->fetch_assoc()['total'] ?? 0;
+                $stmt_total->close();
+                ?>
+                <div class="text-2xl font-bold text-purple-400"><?php echo $total_bookings; ?></div>
+                <div class="text-gray-400">Total Bookings</div>
+            </div>
+        </div>
+
         <!-- Promotions Banner -->
         <div class="mb-8">
             <h3 class="text-xl font-semibold mb-4">Special Offers</h3>
@@ -239,8 +330,16 @@
                 <div class="mt-6 bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
                     <h3 class="text-xl font-semibold mb-4">Quick Links</h3>
                     <ul class="space-y-2">
+                        <li><a href="messages.php" class="text-teal-400 hover:underline flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                            </svg>
+                            Messages
+                            <?php if ($unread_count > 0): ?>
+                                <span class="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-1"><?php echo $unread_count; ?> new</span>
+                            <?php endif; ?>
+                        </a></li>
                         <li><a href="booking_history.php" class="text-teal-400 hover:underline">Booking History</a></li>
-                        <li><a href="wishlist.php" class="text-teal-400 hover:underline">Wishlist</a></li>
                         <li><a href="help.php" class="text-teal-400 hover:underline">Help/FAQ</a></li>
                     </ul>
                 </div>
