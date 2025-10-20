@@ -16,7 +16,12 @@ if (!$car_id) {
 }
 
 // Fetch car details and owner_id
-$stmt = $conn->prepare("SELECT owner_id, brand, model FROM Cars WHERE car_id = ?");
+// To this:
+$stmt = $conn->prepare("SELECT c.owner_id, c.brand, c.model, u.user_id as owner_user_id 
+                       FROM cars c 
+                       JOIN owners o ON c.owner_id = o.owner_id 
+                       JOIN users u ON o.user_id = u.user_id 
+                       WHERE c.car_id = ?");
 $stmt->bind_param('i', $car_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -25,7 +30,7 @@ if ($result->num_rows === 0) {
     exit;
 }
 $car = $result->fetch_assoc();
-$owner_id = $car['owner_id'];
+$owner_id = $car['owner_user_id'];
 $car_name = htmlspecialchars($car['brand'] . ' ' . $car['model']);
 $stmt->close();
 
