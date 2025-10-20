@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $fuel_type = $_POST['fuel_type'];
             $transmission = $_POST['transmission'];
             $price = $_POST['price'];
-            $status = $_POST['status'];
+            $status = $_POST['status'] ?? 'available'; // Add default value
             $location = $_POST['location'];
 
             $image_path = $_POST['existing_image'];
@@ -74,8 +74,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
 
             $sql_update = "UPDATE Cars SET brand = ?, model = ?, year = ?, type = ?, capacity = ?, fuel_type = ?, transmission = ?, price = ?, image = ?, status = ?, location = ? WHERE car_id = ? AND owner_id = ?";
-            $stmt_update = $conn->prepare($sql_update);
-            $stmt_update->bind_param("ssisisdssssi", $brand, $model, $year, $type, $capacity, $fuel_type, $transmission, $price, $image_path, $status, $location, $car_id, $owner_id);
+$stmt_update = $conn->prepare($sql_update);
+// Count the parameters: 13 parameters = 13 characters in bind_param string
+$stmt_update->bind_param("ssiisisdsssii", 
+    $brand, 
+    $model, 
+    $year, 
+    $type, 
+    $capacity, 
+    $fuel_type, 
+    $transmission, 
+    $price, 
+    $image_path, 
+    $status, 
+    $location, 
+    $car_id, 
+    $owner_id
+);
             if ($stmt_update->execute()) {
                 echo '<p class="text-green-400">Car updated successfully!</p>';
             } else {
