@@ -9,27 +9,34 @@
 <body class="bg-gray-100 font-sans">
     <main class="container mx-auto px-4 py-8 text-center">
         <?php
-        include 'auth.php';
+// Add headers to prevent caching
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
 
-        // Retrieve token from cookie instead of GET parameter
-        $token = $_COOKIE['jwt_token'] ?? '';
-        $user = get_user_from_token($token);
-        if (!$user) {
-            echo '<p class="text-red-600">Unauthorized. Please <a href="login.html" class="text-blue-600 hover:underline">log in</a>.</p>';
-            exit;
-        }
+include 'auth.php';
 
-        // Redirect based on user role
-        if ($user['role'] == 'customer') {
-            header("Location: customer_dashboard.php");
-        } elseif ($user['role'] == 'owner') {
-            header("Location: owner_dashboard.php");
-        } elseif ($user['role'] == 'admin') {
-            header("Location: admin_dashboard.php");
-        } else {
-            echo '<p class="text-red-600">Invalid user role.</p>';
-        }
-        ?>
+// Retrieve token from cookie
+$token = $_COOKIE['jwt_token'] ?? '';
+$user = get_user_from_token($token);
+
+if (!$user) {
+    header("Location: login.php");
+    exit;
+}
+
+// Redirect based on user role
+if ($user['role'] == 'customer') {
+    header("Location: customer_dashboard.php");
+} elseif ($user['role'] == 'owner') {
+    header("Location: owner_dashboard.php");
+} elseif ($user['role'] == 'admin') {
+    header("Location: admin_dashboard.php");
+} else {
+    echo '<p class="text-red-600">Invalid user role.</p>';
+    exit;
+}
+?>
         <p>Redirecting...</p>
         <a href="index.html" class="inline-block mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">Go to Home</a>
     </main>
