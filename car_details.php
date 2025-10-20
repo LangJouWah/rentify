@@ -20,11 +20,11 @@ if (!$car_id) {
     exit;
 }
 
-// Fetch car details
+// Fetch car details - REMOVED the status filter
 $sql = "SELECT Cars.*, COALESCE(AVG(Reviews.rating), 0) as avg_rating 
         FROM Cars 
         LEFT JOIN Reviews ON Cars.car_id = Reviews.car_id 
-        WHERE Cars.car_id = ? AND Cars.status = 'available'";
+        WHERE Cars.car_id = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param('i', $car_id);
 $stmt->execute();
@@ -32,7 +32,7 @@ $result = $stmt->get_result();
 $car = $result->fetch_assoc();
 
 if (!$car) {
-    $_SESSION['error'] = 'Car not found or unavailable.';
+    $_SESSION['error'] = 'Car not found.';
     header('Location: dashboard.php');
     exit;
 }
@@ -71,6 +71,13 @@ $stmt->close();
             unset($_SESSION['success']);
         }
         ?>
+        
+        <?php if ($car['status'] !== 'available'): ?>
+            <div class="bg-yellow-900 border border-yellow-700 text-yellow-400 px-4 py-3 rounded relative mb-4" role="alert">
+                This car is currently <?php echo htmlspecialchars($car['status']); ?> and cannot be booked at the moment.
+            </div>
+        <?php endif; ?>
+
         <div class="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
             <h2 class="text-2xl font-bold mb-4"><?php echo htmlspecialchars($car['brand'] . ' ' . $car['model']); ?></h2>
             <img src="<?php echo $car['image'] ?: 'Uploads/cars/placeholder.jpg'; ?>" alt="Car Image" class="w-full h-64 object-cover rounded-lg mb-4">
@@ -81,7 +88,13 @@ $stmt->close();
             <p class="text-gray-300">Fuel Type: <?php echo htmlspecialchars($car['fuel_type']); ?></p>
             <p class="text-gray-300">Transmission: <?php echo htmlspecialchars($car['transmission']); ?></p>
             <p class="text-gray-300">Rating: <?php echo number_format($car['avg_rating'], 1); ?> ★</p>
-            <a href="book.php?car_id=<?php echo $car['car_id']; ?>" class="mt-4 inline-block bg-green-500 text-gray-100 p-3 rounded-lg hover:bg-green-600 transition">Reserve Now</a>
+            <p class="text-gray-300">Status: <span class="<?php echo $car['status'] === 'available' ? 'text-green-400' : 'text-yellow-400'; ?>"><?php echo ucfirst($car['status']); ?></span></p>
+            
+            <?php if ($car['status'] === 'available'): ?>
+                <a href="book.php?car_id=<?php echo $car['car_id']; ?>" class="mt-4 inline-block bg-green-500 text-gray-100 p-3 rounded-lg hover:bg-green-600 transition">Reserve Now</a>
+            <?php else: ?>
+                <button class="mt-4 inline-block bg-gray-500 text-gray-300 p-3 rounded-lg cursor-not-allowed" disabled>Currently Unavailable</button>
+            <?php endif; ?>
         </div>
     </main>
     <footer class="bg-gray-900 text-gray-100 text-center py-4">
