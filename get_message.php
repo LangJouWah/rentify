@@ -38,10 +38,11 @@ if ($conv_result->num_rows === 0) {
 
 $conversation_id = $conv_result->fetch_assoc()['conversation_id'];
 
-// Get messages
-$stmt = $conn->prepare("SELECT message_id, sender_id, receiver_id, message, file_path, type, timestamp 
-                       FROM messages 
-                       WHERE conversation_id = ? 
+// Get messages with sender names
+$stmt = $conn->prepare("SELECT m.message_id, m.sender_id, m.receiver_id, m.message, m.file_path, m.type, m.timestamp, u.name as sender_name
+                       FROM messages m 
+                       JOIN users u ON m.sender_id = u.user_id
+                       WHERE m.conversation_id = ? 
                        ORDER BY timestamp ASC");
 $stmt->bind_param('i', $conversation_id);
 $stmt->execute();
@@ -56,7 +57,8 @@ while ($row = $result->fetch_assoc()) {
         'message' => $row['message'],
         'file_path' => $row['file_path'],
         'type' => $row['type'],
-        'timestamp' => $row['timestamp']
+        'timestamp' => $row['timestamp'],
+        'sender_name' => $row['sender_name'] // Add sender name
     ];
 }
 
