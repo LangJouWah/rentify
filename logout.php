@@ -1,3 +1,26 @@
+<?php
+// Start session and clear the JWT token cookie
+session_start();
+
+// Clear the JWT token cookie by setting expiration to past
+setcookie('jwt_token', '', [
+    'expires' => time() - 3600,
+    'path' => '/',
+    'domain' => '',
+    'secure' => false, // Set to true in production with HTTPS
+    'httponly' => true,
+    'samesite' => 'Strict'
+]);
+
+// Clear any session data
+session_unset();
+session_destroy();
+
+// Add security headers
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,7 +65,12 @@
                 </p>
             </div>
             
-           
+            <!-- Manual redirect option -->
+            <div class="mt-4">
+                <a href="index.php" class="inline-block bg-teal-600 text-white px-6 py-2 rounded-lg hover:bg-teal-700 transition">
+                    <i class="fas fa-home mr-2"></i>Go Home Now
+                </a>
+            </div>
         </div>
     </main>
     
@@ -51,10 +79,19 @@
     </footer>
 
     <script>
-        // Enhanced redirect with smooth animation
+        // Enhanced redirect with smooth animation and security checks
         document.addEventListener('DOMContentLoaded', function() {
+            // Clear any client-side storage
+            localStorage.removeItem('rentify_session');
+            sessionStorage.clear();
+            
+            // Force clear cookies (additional measure)
+            document.cookie = "jwt_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            
+            // Redirect after delay
             setTimeout(() => {
-                window.location.href = 'index.php';
+                // Force a hard redirect to prevent caching
+                window.location.replace('index.php');
             }, 2000);
             
             // Add pulsing animation to the checkmark
@@ -64,6 +101,12 @@
                     checkIcon.classList.toggle('text-teal-300');
                 }, 1000);
             }
+            
+            // Prevent back navigation after logout
+            window.history.pushState(null, null, window.location.href);
+            window.onpopstate = function() {
+                window.history.go(1);
+            };
         });
     </script>
     
@@ -79,6 +122,14 @@
         
         .fa-check-circle {
             transition: color 0.5s ease-in-out;
+        }
+        
+        /* Prevent text selection for better UX */
+        body {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
         }
     </style>
 </body>
