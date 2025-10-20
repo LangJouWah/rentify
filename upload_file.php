@@ -1,5 +1,14 @@
 <?php
 include 'db_connect.php';
+include 'auth.php';
+
+$token = $_COOKIE['jwt_token'] ?? '';
+$user = get_user_from_token($token);
+if (!$user) {
+    http_response_code(401);
+    echo 'Unauthorized';
+    exit;
+}
 
 $car_id = $_POST['car_id'] ?? null;
 $sender_id = $_POST['sender_id'] ?? null;
@@ -24,7 +33,7 @@ if (!in_array($file_type, $allowed_types) || $file_size > $max_size) {
     exit;
 }
 
-$upload_dir = '../Uploads/chats/';
+$upload_dir = 'Uploads/chats/';
 if (!is_dir($upload_dir)) {
     mkdir($upload_dir, 0755, true);
 }
