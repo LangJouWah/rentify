@@ -210,24 +210,35 @@ $stmt->close();
         }
 
         function getMessages() {
-            fetch(`get_messages.php?car_id=${carId}&current_user_id=${currentUserId}&other_user_id=${otherUserId}&is_owner=${isOwner}`)
-                .then(res => res.json())
-                .then(messages => {
-                    const chatBox = document.getElementById('chat-box');
-                    chatBox.innerHTML = '';
-                    messages.forEach(msg => {
-                        const div = document.createElement('div');
-                        div.classList.add('message', msg.sender_id == currentUserId ? 'sent' : 'received');
-                        if (msg.type === 'text') {
-                            div.textContent = msg.message;
-                        } else {
-                            div.innerHTML = `<a href="${msg.file_path}" target="_blank" class="file-link">View File</a>`;
-                        }
-                        chatBox.appendChild(div);
-                    });
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                });
-        }
+    fetch(`get_messages.php?car_id=${carId}&current_user_id=${currentUserId}&other_user_id=${otherUserId}&is_owner=${isOwner}`)
+        .then(res => res.json())
+        .then(messages => {
+            const chatBox = document.getElementById('chat-box');
+            chatBox.innerHTML = '';
+            messages.forEach(msg => {
+                const messageContainer = document.createElement('div');
+                messageContainer.classList.add('mb-3', msg.sender_id == currentUserId ? 'text-right' : 'text-left');
+                
+                const nameDiv = document.createElement('div');
+                nameDiv.classList.add('text-xs', 'text-gray-400', 'mb-1', 'px-2');
+                nameDiv.textContent = msg.sender_name;
+                
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message', 'inline-block', 'max-w-xs', 'lg:max-w-md', msg.sender_id == currentUserId ? 'sent' : 'received');
+                
+                if (msg.type === 'text') {
+                    messageDiv.textContent = msg.message;
+                } else {
+                    messageDiv.innerHTML = `<a href="${msg.file_path}" target="_blank" class="file-link">📎 View File</a>`;
+                }
+                
+                messageContainer.appendChild(nameDiv);
+                messageContainer.appendChild(messageDiv);
+                chatBox.appendChild(messageContainer);
+            });
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+}
 
         function setTyping(isTyping) {
             fetch(`set_typing.php?car_id=${carId}&user_id=${currentUserId}&is_typing=${isTyping ? 1 : 0}`);
