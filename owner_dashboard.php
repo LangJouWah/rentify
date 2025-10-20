@@ -74,23 +74,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
 
             $sql_update = "UPDATE Cars SET brand = ?, model = ?, year = ?, type = ?, capacity = ?, fuel_type = ?, transmission = ?, price = ?, image = ?, status = ?, location = ? WHERE car_id = ? AND owner_id = ?";
-$stmt_update = $conn->prepare($sql_update);
-// Count the parameters: 13 parameters = 13 characters in bind_param string
-$stmt_update->bind_param("ssiisisdsssii", 
-    $brand, 
-    $model, 
-    $year, 
-    $type, 
-    $capacity, 
-    $fuel_type, 
-    $transmission, 
-    $price, 
-    $image_path, 
-    $status, 
-    $location, 
-    $car_id, 
-    $owner_id
-);
+            $stmt_update = $conn->prepare($sql_update);
+            // Count the parameters: 13 parameters = 13 characters in bind_param string
+            $stmt_update->bind_param(
+                "ssiisisdsssii",
+                $brand,
+                $model,
+                $year,
+                $type,
+                $capacity,
+                $fuel_type,
+                $transmission,
+                $price,
+                $image_path,
+                $status,
+                $location,
+                $car_id,
+                $owner_id
+            );
             if ($stmt_update->execute()) {
                 echo '<p class="text-green-400">Car updated successfully!</p>';
             } else {
@@ -177,6 +178,71 @@ $stmt_update->bind_param("ssiisisdsssii",
                 echo '<p class="text-red-400">Error submitting response: ' . $conn->error . '</p>';
             }
             $stmt_response->close();
+        }
+        // ADD BOOKING ACTION HANDLERS HERE
+        elseif ($_POST['action'] == 'accept_booking' && isset($_POST['booking_id'])) {
+            $booking_id = $_POST['booking_id'];
+            $sql_accept = "UPDATE Bookings SET status = 'confirmed' WHERE booking_id = ? AND car_id IN (SELECT car_id FROM Cars WHERE owner_id = ?)";
+            $stmt_accept = $conn->prepare($sql_accept);
+            $stmt_accept->bind_param("ii", $booking_id, $owner_id);
+            if ($stmt_accept->execute()) {
+                // Update car status to rented
+                $sql_update_car = "UPDATE Cars SET status = 'rented' WHERE car_id = (SELECT car_id FROM Bookings WHERE booking_id = ?)";
+                $stmt_update_car = $conn->prepare($sql_update_car);
+                $stmt_update_car->bind_param("i", $booking_id);
+                $stmt_update_car->execute();
+                $stmt_update_car->close();
+
+                echo '<p class="text-green-400">Booking accepted successfully!</p>';
+            } else {
+                echo '<p class="text-red-400">Error accepting booking: ' . $conn->error . '</p>';
+            }
+            $stmt_accept->close();
+        } elseif ($_POST['action'] == 'reject_booking' && isset($_POST['booking_id'])) {
+            $booking_id = $_POST['booking_id'];
+            $sql_reject = "UPDATE Bookings SET status = 'cancelled' WHERE booking_id = ? AND car_id IN (SELECT car_id FROM Cars WHERE owner_id = ?)";
+            $stmt_reject = $conn->prepare($sql_reject);
+            $stmt_reject->bind_param("ii", $booking_id, $owner_id);
+            if ($stmt_reject->execute()) {
+                echo '<p class="text-green-400">Booking rejected successfully!</p>';
+            } else {
+                echo '<p class="text-red-400">Error rejecting booking: ' . $conn->error . '</p>';
+            }
+            $stmt_reject->close();
+        } elseif ($_POST['action'] == 'complete_booking' && isset($_POST['booking_id'])) {
+            $booking_id = $_POST['booking_id'];
+            $sql_complete = "UPDATE Bookings SET status = 'completed' WHERE booking_id = ? AND car_id IN (SELECT car_id FROM Cars WHERE owner_id = ?)";
+            $stmt_complete = $conn->prepare($sql_complete);
+            $stmt_complete->bind_param("ii", $booking_id, $owner_id);
+            if ($stmt_complete->execute()) {
+                // Also free up the car
+                $sql_free_car = "UPDATE Cars SET status = 'available' WHERE car_id = (SELECT car_id FROM Bookings WHERE booking_id = ?)";
+                $stmt_free_car = $conn->prepare($sql_free_car);
+                $stmt_free_car->bind_param("i", $booking_id);
+                $stmt_free_car->execute();
+                $stmt_free_car->close();
+                echo '<p class="text-green-400">Booking marked as completed!</p>';
+            } else {
+                echo '<p class="text-red-400">Error completing booking: ' . $conn->error . '</p>';
+            }
+            $stmt_complete->close();
+        } elseif ($_POST['action'] == 'cancel_booking' && isset($_POST['booking_id'])) {
+            $booking_id = $_POST['booking_id'];
+            $sql_cancel = "UPDATE Bookings SET status = 'cancelled' WHERE booking_id = ? AND car_id IN (SELECT car_id FROM Cars WHERE owner_id = ?)";
+            $stmt_cancel = $conn->prepare($sql_cancel);
+            $stmt_cancel->bind_param("ii", $booking_id, $owner_id);
+            if ($stmt_cancel->execute()) {
+                // Also free up the car
+                $sql_free_car = "UPDATE Cars SET status = 'available' WHERE car_id = (SELECT car_id FROM Bookings WHERE booking_id = ?)";
+                $stmt_free_car = $conn->prepare($sql_free_car);
+                $stmt_free_car->bind_param("i", $booking_id);
+                $stmt_free_car->execute();
+                $stmt_free_car->close();
+                echo '<p class="text-green-400">Booking cancelled successfully!</p>';
+            } else {
+                echo '<p class="text-red-400">Error cancelling booking: ' . $conn->error . '</p>';
+            }
+            $stmt_cancel->close();
         } else {
             echo '<p class="text-red-400">Invalid action or missing required fields.</p>';
         }
@@ -242,12 +308,14 @@ $stmt_available->close();
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Owner Dashboard - Rentify</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <body class="bg-gray-800 font-sans text-gray-100">
     <header class="bg-teal-600 text-gray-100">
         <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -326,15 +394,22 @@ $stmt_available->close();
                 echo '<p class="text-red-400">Error: Car not found or you do not own this car.</p>';
             } ?>
             <form class="mb-6 flex flex-col md:flex-row gap-4" method="GET">
-                <input type="text" name="brand" placeholder="Brand (e.g., Toyota)" value="<?php echo htmlspecialchars($brand); ?>" class="p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600">
-                <input type="text" name="model" placeholder="Model (e.g., Corolla)" value="<?php echo htmlspecialchars($model); ?>" class="p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600">
-                <select name="status" class="p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600">
+                <input type="text" name="brand" placeholder="Brand (e.g., Toyota)"
+                    value="<?php echo htmlspecialchars($brand); ?>"
+                    class="p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600">
+                <input type="text" name="model" placeholder="Model (e.g., Corolla)"
+                    value="<?php echo htmlspecialchars($model); ?>"
+                    class="p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600">
+                <select name="status"
+                    class="p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600">
                     <option value="">All Statuses</option>
-                    <option value="available" <?php echo $status_filter == 'available' ? 'selected' : ''; ?>>Available</option>
+                    <option value="available" <?php echo $status_filter == 'available' ? 'selected' : ''; ?>>Available
+                    </option>
                     <option value="rented" <?php echo $status_filter == 'rented' ? 'selected' : ''; ?>>Rented</option>
                     <option value="under maintenance" <?php echo $status_filter == 'under maintenance' ? 'selected' : ''; ?>>Under Maintenance</option>
                 </select>
-                <button type="submit" class="bg-teal-600 text-gray-100 p-3 rounded-lg hover:bg-teal-700 transition">Search</button>
+                <button type="submit"
+                    class="bg-teal-600 text-gray-100 p-3 rounded-lg hover:bg-teal-700 transition">Search</button>
             </form>
             <form method="POST" class="mb-6" id="batch-update-form">
                 <input type="hidden" name="action" value="batch_update">
@@ -343,7 +418,9 @@ $stmt_available->close();
                         <option value="available">Available</option>
                         <option value="under maintenance">Under Maintenance</option>
                     </select>
-                    <button type="submit" class="bg-teal-600 text-gray-100 p-3 rounded-lg hover:bg-teal-700 transition">Batch Update Status</button>
+                    <button type="submit"
+                        class="bg-teal-600 text-gray-100 p-3 rounded-lg hover:bg-teal-700 transition">Batch Update
+                        Status</button>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
                     <?php
@@ -444,13 +521,55 @@ $stmt_available->close();
                             echo '<td class="p-3">' . htmlspecialchars($row['location']) . '</td>';
                             echo '<td class="p-3">' . htmlspecialchars($row['start_date']) . ' to ' . htmlspecialchars($row['end_date']) . '</td>';
                             echo '<td class="p-3">₱' . number_format($row['total_amount'], 2) . '</td>';
-                            echo '<td class="p-3">' . htmlspecialchars($row['payment_status']) . '</td>';
-                            echo '<td class="p-3">' . ($row['status'] ?: 'Pending') . '</td>';
+                            echo '<td class="p-3"><span class="' . ($row['payment_status'] == 'completed' ? 'text-green-400' : ($row['payment_status'] == 'pending' ? 'text-yellow-400' : 'text-red-400')) . '">' . htmlspecialchars($row['payment_status']) . '</span></td>';
+                            echo '<td class="p-3"><span class="' . ($row['status'] == 'confirmed' ? 'text-green-400' : ($row['status'] == 'completed' ? 'text-blue-400' : ($row['status'] == 'cancelled' ? 'text-red-400' : 'text-yellow-400'))) . '">' . ($row['status'] ?: 'Pending') . '</span></td>';
                             echo '<td class="p-3">';
-                            if ($row['status'] === NULL) {
-                                echo '<a href="bookings.php?action=accept&booking_id=' . $row['booking_id'] . '" class="text-green-400 hover:underline mr-2">Accept</a>';
-                                echo '<a href="bookings.php?action=reject&booking_id=' . $row['booking_id'] . '" class="text-red-400 hover:underline">Reject</a>';
+
+                            // Action buttons based on booking status
+                            if (!$row['status'] || $row['status'] == 'pending') {
+                                // Pending bookings - needs approval
+                                echo '<form method="POST" action="owner_dashboard.php" class="inline">';
+                                echo '<input type="hidden" name="action" value="accept_booking">';
+                                echo '<input type="hidden" name="booking_id" value="' . $row['booking_id'] . '">';
+                                echo '<button type="submit" class="bg-green-500 text-gray-100 px-3 py-1 rounded-lg hover:bg-green-600 transition text-sm mr-2">Accept</button>';
+                                echo '</form>';
+
+                                echo '<form method="POST" action="owner_dashboard.php" class="inline">';
+                                echo '<input type="hidden" name="action" value="reject_booking">';
+                                echo '<input type="hidden" name="booking_id" value="' . $row['booking_id'] . '">';
+                                echo '<button type="submit" class="bg-red-500 text-gray-100 px-3 py-1 rounded-lg hover:bg-red-600 transition text-sm">Reject</button>';
+                                echo '</form>';
+                            } elseif ($row['status'] == 'confirmed') {
+                                // Confirmed bookings - can mark as completed or cancel
+                                if (strtotime($row['end_date']) < time()) {
+                                    echo '<form method="POST" action="owner_dashboard.php" class="inline">';
+                                    echo '<input type="hidden" name="action" value="complete_booking">';
+                                    echo '<input type="hidden" name="booking_id" value="' . $row['booking_id'] . '">';
+                                    echo '<button type="submit" class="bg-blue-500 text-gray-100 px-3 py-1 rounded-lg hover:bg-blue-600 transition text-sm">Complete</button>';
+                                    echo '</form>';
+                                }
+
+                                // Only show cancel button if payment is NOT completed
+                                if ($row['payment_status'] !== 'completed') {
+                                    echo '<form method="POST" action="owner_dashboard.php" class="inline ml-2">';
+                                    echo '<input type="hidden" name="action" value="cancel_booking">';
+                                    echo '<input type="hidden" name="booking_id" value="' . $row['booking_id'] . '">';
+                                    echo '<button type="submit" class="bg-red-500 text-gray-100 px-3 py-1 rounded-lg hover:bg-red-600 transition text-sm" onclick="return confirm(\'Are you sure you want to cancel this booking?\')">Cancel</button>';
+                                    echo '</form>';
+                                } else {
+                                    echo '<span class="text-gray-400 text-sm ml-2">Cannot cancel - payment completed</span>';
+                                }
+                            } elseif ($row['status'] == 'completed') {
+                                // Completed bookings - view details only
+                                echo '<span class="text-gray-400 text-sm">Completed</span>';
+                            } elseif ($row['status'] == 'cancelled') {
+                                // Cancelled bookings - view details only
+                                echo '<span class="text-gray-400 text-sm">Cancelled</span>';
                             }
+
+                            // Always show chat option
+                            echo '<a href="chat.php?car_id=' . $row['car_id'] . '&customer_id=' . $row['user_id'] . '" class="bg-blue-500 text-gray-100 px-3 py-1 rounded-lg hover:bg-blue-600 transition text-sm ml-2 inline-block">Chat</a>';
+
                             echo '</td>';
                             echo '</tr>';
                         }
@@ -515,7 +634,7 @@ $stmt_available->close();
                                     <div class="border-b border-gray-700 pb-4">
                                         <div class="flex justify-between items-center">
                                             <h4 class="text-lg font-semibold">
-                                                <?php echo htmlspecialchars($conv['brand'] . ' ' . $conv['model']); ?> - 
+                                                <?php echo htmlspecialchars($conv['brand'] . ' ' . $conv['model']); ?> -
                                                 <?php echo htmlspecialchars($conv['sender_name']); ?>
                                                 <?php if ($conv['unread_count'] > 0): ?>
                                                     <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
@@ -523,8 +642,8 @@ $stmt_available->close();
                                                     </span>
                                                 <?php endif; ?>
                                             </h4>
-                                            <a href="chat.php?car_id=<?php echo $conv['car_id']; ?>&customer_id=<?php echo $conv['sender_id']; ?>" 
-                                               class="bg-blue-500 text-gray-100 px-4 py-2 rounded-lg hover:bg-blue-600 transition">
+                                            <a href="chat.php?car_id=<?php echo $conv['car_id']; ?>&customer_id=<?php echo $conv['sender_id']; ?>"
+                                                class="bg-blue-500 text-gray-100 px-4 py-2 rounded-lg hover:bg-blue-600 transition">
                                                 View Conversation
                                             </a>
                                         </div>
@@ -558,7 +677,9 @@ $stmt_available->close();
                     echo number_format($stmt_pending->get_result()->fetch_assoc()['pending'] ?? 0, 2);
                     $stmt_pending->close();
                     ?></p>
-                    <a href="export_earnings.php" class="mt-2 inline-block bg-teal-600 text-gray-100 px-4 py-2 rounded-lg hover:bg-teal-700 transition">Export Earnings (CSV)</a>
+                    <a href="export_earnings.php"
+                        class="mt-2 inline-block bg-teal-600 text-gray-100 px-4 py-2 rounded-lg hover:bg-teal-700 transition">Export
+                        Earnings (CSV)</a>
                 </div>
                 <div class="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
                     <?php
@@ -590,7 +711,8 @@ $stmt_available->close();
                         </div>
                         <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 text-center">
                             <h5 class="text-base font-semibold mb-2">Available Cars</h5>
-                            <p class="text-2xl text-teal-400"><?php echo $vehicles_available; ?>/<?php echo $total_cars; ?></p>
+                            <p class="text-2xl text-teal-400">
+                                <?php echo $vehicles_available; ?>/<?php echo $total_cars; ?></p>
                             <p class="text-sm text-gray-400 mt-1">Today</p>
                         </div>
                         <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 text-center">
@@ -662,8 +784,8 @@ $stmt_available->close();
                                 $cars[$car_id] = ['brand' => $row['brand'], 'model' => $row['model'], 'days' => array_fill(1, $days_in_month, $row['status'])];
                             }
                             if ($row['start_date'] && $row['end_date'] && $row['status'] == 'confirmed') {
-                                $start_day = max(1, (int)date('d', strtotime($row['start_date'])));
-                                $end_day = min($days_in_month, (int)date('d', strtotime($row['end_date'])));
+                                $start_day = max(1, (int) date('d', strtotime($row['start_date'])));
+                                $end_day = min($days_in_month, (int) date('d', strtotime($row['end_date'])));
                                 for ($day = $start_day; $day <= $end_day; $day++) {
                                     $cars[$car_id]['days'][$day] = 'rented';
                                 }
@@ -773,89 +895,134 @@ $stmt_available->close();
             <h3 class="text-xl font-semibold mb-4">Support & Disputes</h3>
             <div class="bg-gray-900 p-6 rounded-lg shadow border border-gray-700">
                 <p><a href="mailto:support@rentify.com" class="text-teal-400 hover:underline">Contact Support</a></p>
-                <p><a href="https://rentify.com/disputes" class="text-teal-400 hover:underline">Dispute Resolution Center</a></p>
-                <p><a href="https://rentify.com/guidelines" class="text-teal-400 hover:underline">Claims & Damages Guidelines</a></p>
+                <p><a href="https://rentify.com/disputes" class="text-teal-400 hover:underline">Dispute Resolution
+                        Center</a></p>
+                <p><a href="https://rentify.com/guidelines" class="text-teal-400 hover:underline">Claims & Damages
+                        Guidelines</a></p>
             </div>
         </div>
 
         <!-- Edit Car Modal -->
         <?php if ($edit_car): ?>
-        <div id="editCarModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-gray-900 p-6 rounded-lg shadow border border-gray-700 max-w-md w-full max-h-[80vh] overflow-y-auto">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold">Edit Car</h3>
-                    <a href="owner_dashboard.php?brand=<?php echo urlencode($brand); ?>&model=<?php echo urlencode($model); ?>&status=<?php echo urlencode($status_filter); ?>" class="text-gray-400 hover:text-gray-200 text-2xl">&times;</a>
+            <div id="editCarModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div
+                    class="bg-gray-900 p-6 rounded-lg shadow border border-gray-700 max-w-md w-full max-h-[80vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold">Edit Car</h3>
+                        <a href="owner_dashboard.php?brand=<?php echo urlencode($brand); ?>&model=<?php echo urlencode($model); ?>&status=<?php echo urlencode($status_filter); ?>"
+                            class="text-gray-400 hover:text-gray-200 text-2xl">&times;</a>
+                    </div>
+                    <form method="POST" enctype="multipart/form-data" action="owner_dashboard.php">
+                        <input type="hidden" name="action" value="update">
+                        <input type="hidden" name="car_id" value="<?php echo $edit_car['car_id']; ?>">
+                        <input type="hidden" name="existing_image" value="<?php echo $edit_car['image']; ?>">
+                        <div class="mb-4">
+                            <label class="block text-gray-300 mb-2" for="brand">Brand</label>
+                            <input type="text" name="brand" id="brand"
+                                class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                                value="<?php echo htmlspecialchars($edit_car['brand']); ?>" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-gray-300 mb-2" for="model">Model</label>
+                            <input type="text" name="model" id="model"
+                                class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                                value="<?php echo htmlspecialchars($edit_car['model']); ?>" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-gray-300 mb-2" for="year">Year</label>
+                            <input type="number" name="year" id="year"
+                                class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                                value="<?php echo $edit_car['year']; ?>" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-gray-300 mb-2" for="type">Type</label>
+                            <select name="type" id="type"
+                                class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                                required>
+                                <option value="sedan" <?php echo $edit_car['type'] == 'sedan' ? 'selected' : ''; ?>>Sedan
+                                </option>
+                                <option value="SUV" <?php echo $edit_car['type'] == 'SUV' ? 'selected' : ''; ?>>SUV</option>
+                                <option value="convertible" <?php echo $edit_car['type'] == 'convertible' ? 'selected' : ''; ?>>Convertible</option>
+                                <option value="other" <?php echo $edit_car['type'] == 'other' ? 'selected' : ''; ?>>Other
+                                </option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-gray-300 mb-2" for="capacity">Capacity</label>
+                            <input type="number" name="capacity" id="capacity"
+                                class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                                value="<?php echo $edit_car['capacity']; ?>" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-gray-300 mb-2" for="fuel_type">Fuel Type</label>
+                            <select name="fuel_type" id="fuel_type"
+                                class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                                required>
+                                <option value="petrol" <?php echo $edit_car['fuel_type'] == 'petrol' ? 'selected' : ''; ?>>
+                                    Petrol</option>
+                                <option value="diesel" <?php echo $edit_car['fuel_type'] == 'diesel' ? 'selected' : ''; ?>>
+                                    Diesel</option>
+                                <option value="electric" <?php echo $edit_car['fuel_type'] == 'electric' ? 'selected' : ''; ?>>Electric</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-gray-300 mb-2" for="transmission">Transmission</label>
+                            <select name="transmission" id="transmission"
+                                class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                                required>
+                                <option value="manual" <?php echo $edit_car['transmission'] == 'manual' ? 'selected' : ''; ?>>
+                                    Manual</option>
+                                <option value="automatic" <?php echo $edit_car['transmission'] == 'automatic' ? 'selected' : ''; ?>>Automatic</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-gray-300 mb-2" for="price">Price per Day (₱)</label>
+                            <input type="number" name="price" id="price" step="0.01"
+                                class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                                value="<?php echo $edit_car['price']; ?>" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-gray-300 mb-2" for="location">Location</label>
+                            <input type="text" name="location" id="location"
+                                class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                                value="<?php echo htmlspecialchars($edit_car['location'] ?? 'Manila'); ?>" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-gray-300 mb-2" for="status">Status</label>
+                            <select name="status" id="status"
+                                class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                                required>
+                                <option value="available" <?php echo ($edit_car['status'] ?? '') == 'available' ? 'selected' : ''; ?>>Available</option>
+                                <option value="rented" <?php echo ($edit_car['status'] ?? '') == 'rented' ? 'selected' : ''; ?>>Rented</option>
+                                <option value="under maintenance" <?php echo ($edit_car['status'] ?? '') == 'under maintenance' ? 'selected' : ''; ?>>Under Maintenance</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-6">
+                            <label class="block text-gray-300 mb-2" for="image">Car Image</label>
+                            <p class="text-gray-300 mb-2">Current Image: <img
+                                    src="<?php echo $edit_car['image'] ?: 'Uploads/cars/placeholder.jpg'; ?>"
+                                    alt="Current Car Image" class="w-32 h-32 object-cover rounded-lg"></p>
+                            <input type="file" name="image" id="image" accept="image/jpeg,image/png,image/gif"
+                                class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg">
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-teal-600 text-gray-100 p-3 rounded-lg hover:bg-teal-700 transition">Update
+                            Car</button>
+                        <a href="owner_dashboard.php?brand=<?php echo urlencode($brand); ?>&model=<?php echo urlencode($model); ?>&status=<?php echo urlencode($status_filter); ?>"
+                            class="block text-center mt-4 text-teal-400 hover:underline">Cancel</a>
+                    </form>
                 </div>
-                <form method="POST" enctype="multipart/form-data" action="owner_dashboard.php">
-                    <input type="hidden" name="action" value="update">
-                    <input type="hidden" name="car_id" value="<?php echo $edit_car['car_id']; ?>">
-                    <input type="hidden" name="existing_image" value="<?php echo $edit_car['image']; ?>">
-                    <div class="mb-4">
-                        <label class="block text-gray-300 mb-2" for="brand">Brand</label>
-                        <input type="text" name="brand" id="brand" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" value="<?php echo htmlspecialchars($edit_car['brand']); ?>" required>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-300 mb-2" for="model">Model</label>
-                        <input type="text" name="model" id="model" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" value="<?php echo htmlspecialchars($edit_car['model']); ?>" required>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-300 mb-2" for="year">Year</label>
-                        <input type="number" name="year" id="year" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" value="<?php echo $edit_car['year']; ?>" required>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-300 mb-2" for="type">Type</label>
-                        <select name="type" id="type" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" required>
-                            <option value="sedan" <?php echo $edit_car['type'] == 'sedan' ? 'selected' : ''; ?>>Sedan</option>
-                            <option value="SUV" <?php echo $edit_car['type'] == 'SUV' ? 'selected' : ''; ?>>SUV</option>
-                            <option value="convertible" <?php echo $edit_car['type'] == 'convertible' ? 'selected' : ''; ?>>Convertible</option>
-                            <option value="other" <?php echo $edit_car['type'] == 'other' ? 'selected' : ''; ?>>Other</option>
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-300 mb-2" for="capacity">Capacity</label>
-                        <input type="number" name="capacity" id="capacity" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" value="<?php echo $edit_car['capacity']; ?>" required>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-300 mb-2" for="fuel_type">Fuel Type</label>
-                        <select name="fuel_type" id="fuel_type" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" required>
-                            <option value="petrol" <?php echo $edit_car['fuel_type'] == 'petrol' ? 'selected' : ''; ?>>Petrol</option>
-                            <option value="diesel" <?php echo $edit_car['fuel_type'] == 'diesel' ? 'selected' : ''; ?>>Diesel</option>
-                            <option value="electric" <?php echo $edit_car['fuel_type'] == 'electric' ? 'selected' : ''; ?>>Electric</option>
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-300 mb-2" for="transmission">Transmission</label>
-                        <select name="transmission" id="transmission" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" required>
-                            <option value="manual" <?php echo $edit_car['transmission'] == 'manual' ? 'selected' : ''; ?>>Manual</option>
-                            <option value="automatic" <?php echo $edit_car['transmission'] == 'automatic' ? 'selected' : ''; ?>>Automatic</option>
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-300 mb-2" for="price">Price per Day (₱)</label>
-                        <input type="number" name="price" id="price" step="0.01" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" value="<?php echo $edit_car['price']; ?>" required>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-300 mb-2" for="location">Location</label>
-                        <input type="text" name="location" id="location" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600" value="<?php echo htmlspecialchars($edit_car['location'] ?? 'Manila'); ?>" required>
-                    </div>
-                    <div class="mb-6">
-                        <label class="block text-gray-300 mb-2" for="image">Car Image</label>
-                        <p class="text-gray-300 mb-2">Current Image: <img src="<?php echo $edit_car['image'] ?: 'Uploads/cars/placeholder.jpg'; ?>" alt="Current Car Image" class="w-32 h-32 object-cover rounded-lg"></p>
-                        <input type="file" name="image" id="image" accept="image/jpeg,image/png,image/gif" class="w-full p-3 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg">
-                    </div>
-                    <button type="submit" class="w-full bg-teal-600 text-gray-100 p-3 rounded-lg hover:bg-teal-700 transition">Update Car</button>
-                    <a href="owner_dashboard.php?brand=<?php echo urlencode($brand); ?>&model=<?php echo urlencode($model); ?>&status=<?php echo urlencode($status_filter); ?>" class="block text-center mt-4 text-teal-400 hover:underline">Cancel</a>
-                </form>
             </div>
-        </div>
-        <script>
-            // Close modal when clicking outside
-            document.getElementById('editCarModal')?.addEventListener('click', function(event) {
-                if (event.target === this) {
-                    window.location.href = 'owner_dashboard.php?brand=<?php echo urlencode($brand); ?>&model=<?php echo urlencode($model); ?>&status=<?php echo urlencode($status_filter); ?>';
-                }
-            });
-        </script>
+            <script>
+                // Close modal when clicking outside
+                document.getElementById('editCarModal')?.addEventListener('click', function (event) {
+                    if (event.target === this) {
+                        window.location.href = 'owner_dashboard.php?brand=<?php echo urlencode($brand); ?>&model=<?php echo urlencode($model); ?>&status=<?php echo urlencode($status_filter); ?>';
+                    }
+                });
+            </script>
         <?php endif; ?>
     </main>
     <footer class="bg-gray-900 text-gray-100 text-center py-4">
@@ -866,4 +1033,5 @@ $stmt_available->close();
         </div>
     </footer>
 </body>
+
 </html>
