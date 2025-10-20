@@ -16,9 +16,9 @@
         <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
             <h1 class="text-2xl font-bold">Rentify</h1>
             <div class="flex items-center space-x-4">
-                <form method="GET" class="hidden md:block">
+                <form method="GET" class="hidden md:flex items-center">
                     <input type="text" name="search" placeholder="Search by brand, model, or type" value="<?php echo htmlspecialchars($_GET['search'] ?? ''); ?>" class="p-2 border border-gray-700 bg-gray-900 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600 w-64">
-                    <button type="submit" class="hidden">Search</button>
+                    <button type="submit" class="bg-teal-600 text-gray-100 p-2 rounded-lg hover:bg-teal-700 transition ml-2">Search</button>
                 </form>
                 <div class="relative">
                     <button onclick="toggleProfileDropdown()" class="flex items-center space-x-2">
@@ -91,7 +91,7 @@
             $param_types .= 'd';
         }
         if ($rating) {
-            $sql_where .= " AND (SELECT AVG(rating) FROM Reviews WHERE Reviews.car_id = Cars.car_id) >= ?";
+            $sql_where .= " AND (SELECT COALESCE(AVG(rating), 0) FROM Reviews WHERE Reviews.car_id = Cars.car_id) >= ?";
             $params[] = $rating;
             $param_types .= 'i';
         }
@@ -112,11 +112,16 @@
                      LEFT JOIN Reviews ON Cars.car_id = Reviews.car_id" . $sql_where . 
                      " GROUP BY Cars.car_id";
         $stmt_cars = $conn->prepare($sql_cars);
-        if (!empty($params)) {
-            $stmt_cars->bind_param($param_types, ...$params);
+        if ($stmt_cars === false) {
+            error_log("Car query preparation failed: " . $conn->error);
+            echo '<p class="text-red-400">Error loading cars. Please try again.</p>';
+        } else {
+            if (!empty($params)) {
+                $stmt_cars->bind_param($param_types, ...$params);
+            }
+            $stmt_cars->execute();
+            $result_cars = $stmt_cars->get_result();
         }
-        $stmt_cars->execute();
-        $result_cars = $stmt_cars->get_result();
 
         // Query for trending cars
         $sql_trending = "SELECT Cars.*, COALESCE(AVG(Reviews.rating), 0) as avg_rating, COUNT(Bookings.booking_id) as booking_count 
@@ -128,25 +133,35 @@
                          ORDER BY booking_count DESC, avg_rating DESC 
                          LIMIT 3";
         $stmt_trending = $conn->prepare($sql_trending);
-        $stmt_trending->execute();
-        $result_trending = $stmt_trending->get_result();
+        if ($stmt_trending === false) {
+            error_log("Trending query preparation failed: " . $conn->error);
+            $result_trending = false;
+        } else {
+            $stmt_trending->execute();
+            $result_trending = $stmt_trending->get_result();
+        }
 
-        // Query for promotions
-        $sql_promos = "SELECT p.*, c.brand, c.model 
+        // Query for promotions - FIXED: Added location field
+        $sql_promos = "SELECT p.*, c.brand, c.model, c.location 
                        FROM Promotions p 
                        JOIN Cars c ON p.car_id = c.car_id 
                        WHERE p.end_date >= CURDATE() 
                        LIMIT 3";
         $stmt_promos = $conn->prepare($sql_promos);
-        $stmt_promos->execute();
-        $result_promos = $stmt_promos->get_result();
+        if ($stmt_promos === false) {
+            error_log("Promotions query preparation failed: " . $conn->error);
+            $result_promos = false;
+        } else {
+            $stmt_promos->execute();
+            $result_promos = $stmt_promos->get_result();
+        }
         ?>
         <!-- Promotions Banner -->
         <div class="mb-8">
             <h3 class="text-xl font-semibold mb-4">Special Offers</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <?php
-                if ($result_promos->num_rows == 0) {
+                if (!$result_promos || $result_promos->num_rows == 0) {
                     echo '<p class="text-gray-300">No current promotions.</p>';
                 } else {
                     while ($row = $result_promos->fetch_assoc()) {
@@ -158,8 +173,8 @@
                         echo '<p class="text-gray-300">Valid until: ' . htmlspecialchars($row['end_date']) . '</p>';
                         echo '</div>';
                     }
+                    $stmt_promos->close();
                 }
-                $stmt_promos->close();
                 ?>
             </div>
         </div>
@@ -177,8 +192,7 @@
                                 <option value="sedan" <?php echo $type == 'sedan' ? 'selected' : ''; ?>>Sedan</option>
                                 <option value="SUV" <?php echo $type == 'SUV' ? 'selected' : ''; ?>>SUV</option>
                                 <option value="convertible" <?php echo $type == 'convertible' ? 'selected' : ''; ?>>Convertible</option>
-                                <option value="luxury" <?php echo $type == 'luxury' ? 'selected' : ''; ?>>Luxury</option>
-                                <option value="electric" <?php echo $type == 'electric' ? 'selected' : ''; ?>>Electric</option>
+                                <option value="other" <?php echo $type == 'other' ? 'selected' : ''; ?>>Other</option>
                             </select>
                         </div>
                         <div class="mb-4">
@@ -239,7 +253,7 @@
                     <h3 class="text-xl font-semibold mb-4">Trending Cars</h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <?php
-                        if ($result_trending->num_rows == 0) {
+                        if (!$result_trending || $result_trending->num_rows == 0) {
                             echo '<p class="text-gray-300">No trending cars available.</p>';
                         } else {
                             while ($row = $result_trending->fetch_assoc()) {
@@ -249,7 +263,7 @@
                                 echo '<p class="text-gray-300">Year: ' . htmlspecialchars($row['year']) . '</p>';
                                 echo '<p class="text-gray-300">Type: ' . htmlspecialchars($row['type']) . '</p>';
                                 echo '<p class="text-gray-300">Location: ' . htmlspecialchars($row['location']) . '</p>';
-                                echo '<p class="text-gray-300">Price: $' . number_format($row['price'], 2) . '/day</p>';
+                                echo '<p class="text-gray-300">Price: ₱' . number_format($row['price'], 2) . '/day</p>';
                                 echo '<p class="text-gray-300">Rating: ' . number_format($row['avg_rating'], 1) . ' (' . $row['booking_count'] . ' bookings)</p>';
                                 echo '<div class="mt-4 flex space-x-2">';
                                 echo '<a href="car_details.php?car_id=' . $row['car_id'] . '" class="bg-teal-600 text-gray-100 p-2 rounded-lg hover:bg-teal-700 transition">View Details</a>';
@@ -258,8 +272,8 @@
                                 echo '</div>';
                                 echo '</div>';
                             }
+                            $stmt_trending->close();
                         }
-                        $stmt_trending->close();
                         ?>
                     </div>
                 </div>
@@ -269,7 +283,7 @@
                     <h3 class="text-xl font-semibold mb-4">Available Cars</h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <?php
-                        if ($result_cars->num_rows == 0) {
+                        if (!$result_cars || $result_cars->num_rows == 0) {
                             echo '<p class="text-gray-300">No cars available.</p>';
                         } else {
                             while ($row = $result_cars->fetch_assoc()) {
@@ -279,17 +293,17 @@
                                 echo '<p class="text-gray-300">Year: ' . htmlspecialchars($row['year']) . '</p>';
                                 echo '<p class="text-gray-300">Type: ' . htmlspecialchars($row['type']) . '</p>';
                                 echo '<p class="text-gray-300">Location: ' . htmlspecialchars($row['location']) . '</p>';
-                                echo '<p class="text-gray-300">Price: $' . number_format($row['price'], 2) . '/day</p>';
+                                echo '<p class="text-gray-300">Price: ₱' . number_format($row['price'], 2) . '/day</p>';
                                 echo '<p class="text-gray-300">Rating: ' . number_format($row['avg_rating'], 1) . ' ★</p>';
                                 echo '<div class="mt-4 flex space-x-2">';
                                 echo '<a href="car_details.php?car_id=' . $row['car_id'] . '" class="bg-teal-600 text-gray-100 p-2 rounded-lg hover:bg-teal-700 transition">View Details</a>';
                                 echo '<a href="book.php?car_id=' . $row['car_id'] . '" class="bg-green-500 text-gray-100 p-2 rounded-lg hover:bg-green-600 transition">Reserve</a>';
-                                echo '<a href="chat.php?regarding=car&car_id=' . $row['car_id'] . '" class="bg-blue-500 text-gray-100 p-2 rounded-lg hover:bg-blue-600 transition">Chat with Owner</a>';
+                                echo '<a href="chat.php?car_id=' . $row['car_id'] . '" class="bg-blue-500 text-gray-100 p-2 rounded-lg hover:bg-blue-600 transition">Chat with Owner</a>';
                                 echo '</div>';
                                 echo '</div>';
                             }
+                            $stmt_cars->close();
                         }
-                        $stmt_cars->close();
                         ?>
                     </div>
                 </div>
