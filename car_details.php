@@ -77,11 +77,11 @@ $stmt->close();
             <p class="text-gray-300">Year: <?php echo htmlspecialchars($car['year']); ?></p>
             <p class="text-gray-300">Type: <?php echo htmlspecialchars($car['type']); ?></p>
             <p class="text-gray-300">Location: <?php echo htmlspecialchars($car['location']); ?></p>
-            <p class="text-gray-300">Price: $<?php echo number_format($car['price'], 2); ?>/day</p>
+            <p class="text-gray-300">Price: ₱<?php echo number_format($car['price'], 2); ?>/day</p>
             <p class="text-gray-300">Fuel Type: <?php echo htmlspecialchars($car['fuel_type']); ?></p>
             <p class="text-gray-300">Transmission: <?php echo htmlspecialchars($car['transmission']); ?></p>
             <p class="text-gray-300">Rating: <?php echo number_format($car['avg_rating'], 1); ?> ★</p>
-            <a href="book_car.php?car_id=<?php echo $car['car_id']; ?>" class="mt-4 inline-block bg-green-500 text-gray-100 p-3 rounded-lg hover:bg-green-600 transition">Reserve Now</a>
+            <a href="book.php?car_id=<?php echo $car['car_id']; ?>" class="mt-4 inline-block bg-green-500 text-gray-100 p-3 rounded-lg hover:bg-green-600 transition">Reserve Now</a>
         </div>
     </main>
     <footer class="bg-gray-900 text-gray-100 text-center py-4">
