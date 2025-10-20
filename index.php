@@ -1,3 +1,29 @@
+<?php
+// Start session and include auth
+session_start();
+include 'auth.php';
+
+// Check if user is already logged in
+$token = $_COOKIE['jwt_token'] ?? '';
+$user = get_user_from_token($token);
+
+if ($user) {
+    // User is already logged in, redirect based on role
+    if ($user['role'] == 'customer' || $user['role'] == 'driver') {
+        header("Location: customer_dashboard.php");
+    } elseif ($user['role'] == 'owner') {
+        header("Location: owner_dashboard.php");
+    } elseif ($user['role'] == 'admin') {
+        header("Location: admin_dashboard.php");
+    }
+    exit;
+}
+
+// Add security headers to prevent caching
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -471,5 +497,38 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Session Check Script -->
+    <script>
+        // Client-side session check as additional security
+        function checkClientSession() {
+            // Check if we have a JWT token in cookies
+            const cookies = document.cookie.split(';');
+            const jwtCookie = cookies.find(cookie => cookie.trim().startsWith('jwt_token='));
+            
+            if (jwtCookie) {
+                // If token exists, redirect to dashboard
+                window.location.href = 'dashboard.php';
+            }
+        }
+
+        // Run check on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkClientSession();
+        });
+
+        // Also check when page becomes visible (user navigates back)
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                checkClientSession();
+            }
+        });
+
+        // Prevent back navigation after logout
+        window.history.pushState(null, null, window.location.href);
+        window.onpopstate = function() {
+            window.history.go(1);
+        };
+    </script>
 </body>
 </html>
